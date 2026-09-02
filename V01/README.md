@@ -28,6 +28,10 @@ V01 contains no application code, no APIs, no ML models, no databases, no fronte
 | [PRODUCT_FOUNDATION.md](./PRODUCT_FOUNDATION.md) | Product vision, positioning, target users, and core product areas |
 | [PROJECT_SCOPE.md](./PROJECT_SCOPE.md) | Explicit in-scope and out-of-scope boundaries for the platform |
 | [PRINCIPLES.md](./PRINCIPLES.md) | Engineering, product, and quantitative research principles |
+| [PRODUCT_ROADMAP.md](./PRODUCT_ROADMAP.md) | Full 30-volume development roadmap (V01–V30) |
+| [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) | Git strategy, commit conventions, volume workflow, quality gates |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contributor guide for open-source participation |
+| [PROJECT_STATUS.md](./PROJECT_STATUS.md) | Current implementation status and next volume |
 | [decisions/README.md](./decisions/README.md) | Architecture and product decision record (ADR) index and process |
 
 ---
@@ -81,9 +85,10 @@ Volumes are not strictly sequential — some work may begin in parallel — but 
 
 ## V01 Commit History
 
-| Commit | Description |
-|--------|-------------|
-| 01 | Initialize RegimeX open-source platform (this commit) |
+| Commit | Message | Description |
+|--------|---------|-------------|
+| 01 | `chore(project): initialize RegimeX open-source platform` | Project identity, principles, scope, ADR system |
+| 02 | `docs(product): establish RegimeX product vision and roadmap` | Roadmap, development guide, contributing, project status |
 
 ---
 
