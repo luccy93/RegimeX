@@ -1,45 +1,39 @@
 # V03 — System Architecture
 
-**RegimeX — Open-Source Market Intelligence Platform**
+**RegimeX — Open-Source Market Intelligence Platform**  
+**Volume:** V03 — System Architecture  
 
 ---
 
-## Purpose of V03
+## 1. Purpose of V03
 
-V03 defines the technical architecture of RegimeX — the module boundaries, data flows, technology choices, and interface specifications that constrain all implementation work beginning in V04.
+V03 defines the comprehensive technical architecture blueprint of RegimeX — the modular boundaries, data flows, service boundaries, technology policies, and architecture decisions that govern all implementation beginning in V04.
 
-This volume does **not** implement any application code. It defines the blueprint that implementation volumes follow.
-
----
-
-## Documents in V03
-
-| Document | Purpose |
-|----------|---------|
-| [SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md) | High-level system design and component overview |
-| [MODULE_DESIGN.md](./MODULE_DESIGN.md) | Module decomposition, boundaries, and responsibilities |
-| [DATA_FLOWS.md](./DATA_FLOWS.md) | End-to-end data flow from ingestion to API |
-| [INTERFACE_SPECIFICATIONS.md](./INTERFACE_SPECIFICATIONS.md) | Abstract interface definitions for core extension points |
-| [DEPLOYMENT_TOPOLOGY.md](./DEPLOYMENT_TOPOLOGY.md) | Self-hosted deployment topology and service map |
-| [decisions/](./decisions/) | Architecture Decision Records for all major technology choices |
+This volume does **not** implement application code. It establishes the enterprise architectural blueprint that implementation volumes must follow.
 
 ---
 
-## Architecture Decision Records
+## 2. Core Architecture Blueprint Documents
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Primary enterprise architecture blueprint: goals, layers, domains, security, storage, AI, traceability, and risks |
+| [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) | Foundational engineering and architectural principles governing system design |
+| [MODULE_BOUNDARIES.md](./MODULE_BOUNDARIES.md) | Strict boundaries, responsibilities, data ownership, and prohibited actions for all 14 modules |
+| [SERVICE_BOUNDARIES.md](./SERVICE_BOUNDARIES.md) | Logical service boundaries, communication mechanisms, failure modes, and scaling characteristics |
+| [DATA_FLOW.md](./DATA_FLOW.md) | End-to-end data pipeline from raw market ingestion through validation gates to delivery |
+| [INTERFACE_SPECIFICATIONS.md](./INTERFACE_SPECIFICATIONS.md) | Abstract Python interface specifications for core extension points |
+| [DEPLOYMENT_TOPOLOGY.md](./DEPLOYMENT_TOPOLOGY.md) | Containerized deployment topologies for local development and production |
+| [decisions/](./decisions/) | Architecture Decision Records (ADR) system and register |
+
+---
+
+## 3. Architecture Decision Records
 
 | ADR | Title | Status |
-|-----|-------|--------|
-| [ADR-0001](./decisions/ADR-0001-python-as-primary-language.md) | Python as Primary Language | Accepted |
-| [ADR-0002](./decisions/ADR-0002-fastapi-as-api-framework.md) | FastAPI as API Framework | Accepted |
-| [ADR-0003](./decisions/ADR-0003-postgresql-timescaledb-for-storage.md) | PostgreSQL + TimescaleDB for Storage | Accepted |
-| [ADR-0004](./decisions/ADR-0004-provider-abstraction-pattern.md) | Provider Abstraction Pattern | Accepted |
-| [ADR-0005](./decisions/ADR-0005-regime-detector-interface-design.md) | Regime Detector Interface Design | Accepted |
-
----
-
-## V03 Commit History
-
-| Commit | Message | Description |
-|--------|---------|-------------|
-| 01 | `feat(architecture): define system architecture and module design` | Architecture, modules, data flows, ADR-0001–0003 |
-| 02 | `feat(architecture): add interface specs, ADRs, and deployment topology` | Interfaces, deployment, ADR-0004–0005 |
+|:---:|:------|:------:|
+| [ADR-0001](./decisions/ADR-0001-architecture-style.md) | Modular Monolith with Asynchronous Workers | Accepted |
+| [ADR-0002](./decisions/ADR-0002-data-provider-abstraction.md) | Market Data Provider Abstraction | Accepted |
+| [ADR-0003](./decisions/ADR-0003-regime-model-abstraction.md) | Regime Detection Model Abstraction | Accepted |
+| [ADR-0004](./decisions/ADR-0004-provider-abstraction-pattern.md) | Provider Abstraction Pattern (Detailed Spec) | Accepted |
+| [ADR-0005](./decisions/ADR-0005-regime-detector-interface-design.md) | Regime Detector Interface Design (Detailed Spec) | Accepted |
