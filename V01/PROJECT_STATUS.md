@@ -77,7 +77,7 @@ The following capabilities do **not exist** in the RegimeX codebase. They are pl
 | 01 | `chore(project): initialize RegimeX open-source platform` | ✅ Complete |
 | 02 | `docs(product): establish RegimeX product vision and roadmap` | ✅ Complete |
 
-V01 is complete. Two commits. No further commits will be added to V01.
+V01 is complete. Exactly two commits. No further commits will be added to V01.
 
 ---
 
@@ -106,7 +106,7 @@ V01 is complete. Two commits. No further commits will be added to V01.
 
 ```text
 Branch:          master (will be renamed to main/develop in V04)
-Commits:         2
+Commits:         2 (V01 complete)
 Uncommitted:     None
 Application code: None
 Dependencies:    None installed

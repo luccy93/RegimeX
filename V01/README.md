@@ -61,23 +61,16 @@ The following are explicitly deferred to future volumes:
 
 V01 is the **north star document set** for all future volumes. Every engineering decision in subsequent volumes should be traceable back to the product principles and scope defined here.
 
-Future volumes will follow a progressive implementation approach:
+Future volumes will follow a progressive implementation approach across six phases and 30 volumes. See [`PRODUCT_ROADMAP.md`](./PRODUCT_ROADMAP.md) for the complete sequence.
 
-```text
-V01 → Product Foundation         (this volume)
-V02 → Core Architecture          (repository structure, module design, language choices)
-V03 → Data Ingestion Layer       (provider-independent market data)
-V04 → Feature Engineering        (quantitative feature generation)
-V05 → Regime Detection           (algorithms, classification, confidence)
-V06 → Regime Intelligence        (transition analysis, regime history)
-V07 → Risk Analytics             (risk metrics, regime-aware risk)
-V08 → Backtesting Engine         (event-driven, walk-forward validation)
-V09 → Research Workspace         (reproducible research notebooks/tooling)
-V10 → AI Research Assistant      (grounded AI-assisted market research)
-V11 → API Platform               (developer-facing API layer)
-V12 → Public Web Platform        (web analytics and dashboards)
-V13 → Developer & Community      (SDKs, plugins, contributor tooling)
-```
+| Phase | Volumes | Focus |
+|-------|---------|-------|
+| Foundation | V01–V04 | Product identity, requirements, architecture, monorepo |
+| Data & Intelligence | V05–V12 | Market data, features, regime detection, transition analysis |
+| Quantitative Analytics | V13–V15 | Risk engine, backtesting, strategy analytics |
+| Platform | V16–V21 | API, authentication, web interface, AI assistant |
+| Production | V22–V26 | Testing, observability, Docker, CI/CD, deployment |
+| Open Source | V27–V30 | Developer experience, community, hardening, 1.0 release |
 
 Volumes are not strictly sequential — some work may begin in parallel — but V01 principles govern all of them.
 
