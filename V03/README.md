@@ -18,6 +18,7 @@ This volume does **not** implement application code. It establishes the enterpri
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Primary enterprise architecture blueprint: goals, layers, domains, security, storage, AI, traceability, and risks |
+| [DIAGRAMS.md](./DIAGRAMS.md) | Formal Mermaid architecture diagrams: System Context, Container Runtime, Data Pipeline, Grounded AI, and Security |
 | [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) | Foundational engineering and architectural principles governing system design |
 | [MODULE_BOUNDARIES.md](./MODULE_BOUNDARIES.md) | Strict boundaries, responsibilities, data ownership, and prohibited actions for all 14 modules |
 | [SERVICE_BOUNDARIES.md](./SERVICE_BOUNDARIES.md) | Logical service boundaries, communication mechanisms, failure modes, and scaling characteristics |

@@ -161,25 +161,42 @@ RegimeX decomposes its functional capabilities into 14 logical domains (detailed
 
 ## 6. Technology Policy & Core Stack
 
-To prevent architectural bloat and maintain contributor accessibility, RegimeX enforces a strict technology policy:
+To prevent architectural bloat, avoid premature dependencies, and maintain open-source contributor accessibility, RegimeX enforces a strict technology policy distinguishing confirmed architectural directions from proposed implementation choices and unresolved decisions.
 
-### Confirmed Architectural Stack
-- **Language:** Python 3.10+ (type-annotated domain engine, scientific stack) and TypeScript (frontend web application).
-- **API Framework:** FastAPI (high-performance asynchronous REST routing, automatic OpenAPI specification generation).
-- **Presentation Framework:** Next.js / React (modern, responsive web dashboards, SSR capabilities).
-- **Primary Persistence:** PostgreSQL 15+ with TimescaleDB extension (relational ACID integrity combined with high-performance time-series hypertables).
-- **In-Memory Cache & Message Broker:** Redis 7+ (ephemeral cache, rate-limiting store, and Celery task broker).
-- **Task Execution Harness:** Celery (robust, distributed background task processing).
-- **Numerical & ML Core:** NumPy, pandas, scikit-learn, hmmlearn, statsmodels, scipy.
-- **Code Quality & Verification:** Ruff (formatting and linting), mypy (static type checking), pytest (unit, integration, and compliance testing).
-- **Containerization:** Docker and Docker Compose (single-command local deployment).
+Detailed visual specifications for all architectural layers are available in [DIAGRAMS.md](./DIAGRAMS.md).
 
-### Technologies Explicitly Excluded for V03
-The following technologies are deliberately omitted as unnecessary complexity for current requirements:
-- **Kafka / RabbitMQ:** Redis provides sufficient throughput and simplicity for current task queue and caching needs.
-- **Kubernetes:** Imposes excessive operational complexity for self-hosters; Docker Compose fulfills all current deployment requirements.
-- **Dedicated Vector Databases (e.g., Pinecone, Qdrant, Milvus):** Grounded AI retrieval in RegimeX relies on structured SQL/time-series metadata querying, not unstructured semantic similarity search. PostgreSQL with `pgvector` can be introduced in V21 if semantic document retrieval is required.
-- **Graph Databases (Neo4j):** Relational tables cleanly model asset correlations and transition matrices.
+### 6.1 Confirmed Architectural Direction
+These technologies represent foundational architectural commitments established by V01 principles and V02 requirements:
+- **Programming Languages:** Python 3.10+ (for analytical core, mathematical pipelines, and data processing) and TypeScript (for type-safe web platform development).
+- **API Framework:** FastAPI (high-performance asynchronous ASGI routing, native typing, and OpenAPI generation).
+- **Web Application:** Next.js / React (modern responsive presentation, server-side rendering for financial dashboards).
+- **Primary Data Persistence:** PostgreSQL 15+ with TimescaleDB (relational ACID compliance combined with time-series hypertables).
+- **In-Memory Cache & Message Broker:** Redis 7+ (ephemeral caching, sliding-window rate limiting, and task queue broker).
+- **Containerization & Deployment:** Docker and Docker Compose (reproducible, vendor-agnostic local and production self-hosting).
+
+### 6.2 Proposed Implementation Candidates
+These technologies are architectural candidates selected for standard implementation, subject to empirical validation in their respective volumes:
+- **Asynchronous Task Harness:** Celery (distributed background job execution; to be validated in V05/V08).
+- **Reverse Proxy & TLS:** Caddy (automated TLS certificate lifecycle, reverse proxy; configurable with Nginx).
+- **Numerical & ML Libraries:** NumPy, pandas, scikit-learn, hmmlearn, statsmodels, scipy.
+- **Data Validation:** Pydantic v2 (strict request/response schema parsing and serialization).
+- **Observability:** `structlog` (structured JSON logging) and `prometheus-client` (metrics scraping).
+- **Code Quality:** Ruff (linter/formatter), mypy (static type analysis), pytest (automated testing).
+
+### 6.3 Unresolved Technology Decisions
+The following architectural decisions remain open and will be decided via formal ADRs in their designated volumes:
+- **Initial Data Providers (OQ-001):** To be finalized in V05 (Market Data Engine).
+- **Supported Asset Class Scope (OQ-002):** US Equities initially vs Multi-Market; to be resolved in V05.
+- **Default Regime Detection Algorithm (OQ-003):** HMM vs GMM prioritized in V08.
+- **AI Foundation Model Provider (OQ-004):** OpenAI vs Anthropic vs Local LLM; to be resolved in V21.
+- **Open-Source License Selection (OQ-010):** Must be resolved prior to V04 implementation.
+
+### 6.4 Technologies Explicitly Excluded for V03
+The following technologies are deliberately omitted as unnecessary complexity:
+- **Kafka / RabbitMQ:** Redis provides sufficient throughput without the heavy operational overhead of Kafka.
+- **Kubernetes:** Self-hosting simplicity mandates Docker Compose; Kubernetes is not required for single-node or moderate-scale deployments.
+- **Dedicated Vector Databases (Pinecone/Qdrant):** Grounded AI retrieval relies on structured time-series queries; vector embeddings can use PostgreSQL `pgvector` if needed in V21.
+- **Graph Databases (Neo4j):** Relational tables efficiently represent transition matrices and asset correlations.
 
 ---
 
@@ -311,44 +328,64 @@ The AI Research Assistant operates through a strictly bounded, read-only groundi
 
 ---
 
-## 10. Traceability Matrix
+---
 
-The architecture blueprint directly satisfies the requirements defined in V02:
+## 10. Requirements Traceability
 
-| Architecture Component | Addressed Functional Requirements | Addressed Non-Functional Requirements |
-|------------------------|-----------------------------------|---------------------------------------|
-| **Market Discovery Domain** | FR-001 – FR-004 | NFR-029 (Scalability), NFR-091 (Symbol Validity) |
-| **Market Data Domain & Abstraction** | FR-005 – FR-013 | NFR-002 (Perf), NFR-023 (Availability), NFR-034 (Idempotency), NFR-078 (Compatibility), NFR-085–088 (Data Quality) |
-| **Data Quality Gate** | FR-009, FR-011 | NFR-038 (Silent Corruption Prevention), NFR-085–093 (Data Quality) |
-| **Feature Engineering Pipeline** | FR-014 – FR-021 | NFR-003 (Perf), NFR-030 (Scale), NFR-032 (Reproducibility), NFR-093 (Quality Gate) |
-| **Regime Detection & Model Abstraction** | FR-022 – FR-031 | NFR-004 (Perf), NFR-030 (Scale), NFR-032 (Reproducibility), NFR-078 (Compatibility), NFR-101 (Uncertainty) |
-| **Regime Intelligence** | FR-032 – FR-037 | NFR-001 (Perf), NFR-032 (Reproducibility) |
-| **Risk Analytics Engine** | FR-038 – FR-044 | NFR-001 (Perf), NFR-032 (Reproducibility), NFR-099 (No Guarantees), NFR-101 (Uncertainty) |
-| **Strategy Backtesting Engine** | FR-045 – FR-055 | NFR-005 (Perf), NFR-032 (Reproducibility), NFR-098 (Audit), NFR-099 (No Guarantees) |
-| **Research Workspace** | FR-056 – FR-059 | NFR-032 (Reproducibility), NFR-058 (Privacy), NFR-094, 097 (Auditability) |
-| **Grounded AI Architecture** | FR-060 – FR-066 | NFR-022 (Graceful Degradation), NFR-059 (Privacy), NFR-100 (No Advice), NFR-103 (No Hallucination) |
-| **Identity, Security & API Gateway** | FR-067 – FR-081 | NFR-001 (Perf), NFR-009–020 (Security), NFR-026 (Scale), NFR-076 (API Compatibility) |
-| **Background Worker Harness** | FR-008, FR-045, FR-075 | NFR-008 (Workload Isolation), NFR-031 (Scalability), NFR-037 (Job Recovery) |
-| **Observability Infrastructure** | FR-079, FR-085 | NFR-039–048 (Structured Logging, Metrics, Tracing, Health Endpoints) |
-| **Open-Source Self-Hosting** | FR-086 – FR-091 | NFR-075 (OS Compatibility), NFR-105 (License Compliance) |
+The RegimeX architecture blueprint establishes an unbroken chain of traceability from the original product vision through requirements, architecture components, and formal architecture decisions:
+
+```text
+V01 Product Vision (V01/PRODUCT_FOUNDATION.md, V01/PRINCIPLES.md)
+        ↓
+V02 Functional Requirements (V02/SRS.md FR-001–FR-091)
+        ↓
+V02 Non-Functional Requirements (V02/SRS.md NFR-001–NFR-113)
+        ↓
+V03 Architecture Blueprint (V03/ARCHITECTURE.md, V03/MODULE_BOUNDARIES.md)
+        ↓
+Architecture Decisions (ADR-0001 through ADR-0005)
+```
+
+### Traceability Mapping Matrix
+
+| Architecture Component | Addressed Functional Requirements | Addressed Non-Functional Requirements | Governing ADRs |
+|------------------------|-----------------------------------|---------------------------------------|:--------------:|
+| **Modular System Style** | All modules | NFR-001, NFR-008, NFR-026, NFR-064, NFR-075 | [ADR-0001](./decisions/ADR-0001-architecture-style.md) |
+| **Market Discovery Domain** | FR-001 – FR-004 | NFR-029 (Scalability), NFR-091 (Symbol Validity) | — |
+| **Market Data Domain & Abstraction** | FR-005 – FR-013 | NFR-002 (Perf), NFR-023 (Availability), NFR-034 (Idempotency), NFR-078 (Compatibility), NFR-085–088 (Data Quality) | [ADR-0002](./decisions/ADR-0002-data-provider-abstraction.md), [ADR-0004](./decisions/ADR-0004-provider-abstraction-pattern.md) |
+| **Data Quality Gate** | FR-009, FR-011 | NFR-038 (Silent Corruption Prevention), NFR-085–093 (Data Quality) | [ADR-0004](./decisions/ADR-0004-provider-abstraction-pattern.md) |
+| **Feature Engineering Pipeline** | FR-014 – FR-021 | NFR-003 (Perf), NFR-030 (Scale), NFR-032 (Reproducibility), NFR-093 (Quality Gate) | — |
+| **Regime Detection & Model Abstraction** | FR-022 – FR-031 | NFR-004 (Perf), NFR-030 (Scale), NFR-032 (Reproducibility), NFR-078 (Compatibility), NFR-101 (Uncertainty) | [ADR-0003](./decisions/ADR-0003-regime-model-abstraction.md), [ADR-0005](./decisions/ADR-0005-regime-detector-interface-design.md) |
+| **Regime Intelligence** | FR-032 – FR-037 | NFR-001 (Perf), NFR-032 (Reproducibility) | [ADR-0005](./decisions/ADR-0005-regime-detector-interface-design.md) |
+| **Risk Analytics Engine** | FR-038 – FR-044 | NFR-001 (Perf), NFR-032 (Reproducibility), NFR-099 (No Guarantees), NFR-101 (Uncertainty) | — |
+| **Strategy Backtesting Engine** | FR-045 – FR-055 | NFR-005 (Perf), NFR-032 (Reproducibility), NFR-098 (Audit), NFR-099 (No Guarantees) | — |
+| **Research Workspace** | FR-056 – FR-059 | NFR-032 (Reproducibility), NFR-058 (Privacy), NFR-094, 097 (Auditability) | [ADR-0001](./decisions/ADR-0001-architecture-style.md) |
+| **Grounded AI Architecture** | FR-060 – FR-066 | NFR-022 (Graceful Degradation), NFR-059 (Privacy), NFR-100 (No Advice), NFR-103 (No Hallucination) | — |
+| **Identity, Security & API Gateway** | FR-067 – FR-081 | NFR-001 (Perf), NFR-009–020 (Security), NFR-026 (Scale), NFR-076 (API Compatibility) | [ADR-0001](./decisions/ADR-0001-architecture-style.md) |
+| **Background Worker Harness** | FR-008, FR-045, FR-075 | NFR-008 (Workload Isolation), NFR-031 (Scalability), NFR-037 (Job Recovery) | [ADR-0001](./decisions/ADR-0001-architecture-style.md) |
+| **Observability Infrastructure** | FR-079, FR-085 | NFR-039–048 (Structured Logging, Metrics, Tracing, Health Endpoints) | — |
+| **Open-Source Self-Hosting** | FR-086 – FR-091 | NFR-075 (OS Compatibility), NFR-105 (License Compliance) | [ADR-0001](./decisions/ADR-0001-architecture-style.md) |
 
 ---
 
-## 11. Architecture Risks & Mitigations
+## 11. Architecture Risk Register
+
+The following register documents the architectural risks identified for RegimeX, their evaluated impact, mitigation strategies, and residual uncertainties. These risks are managed proactively through automated verification gates, modular contracts, and ADR constraints:
 
 | Risk | Impact | Mitigation Strategy | Residual Uncertainty |
-|------|--------|---------------------|----------------------|
-| **1. Upstream Data Feed Instability / Rate Limits** | Ingestion failures, stale market data | Provider Abstraction with circuit breakers, exponential backoff, and multi-provider fallback adapters | Vendor API pricing or terms of service changes |
-| **2. Look-Ahead Bias Contamination** | Invalidated quantitative research, false strategy confidence | Automated CI bias checking, strict $t \le T$ slice validation, immutable historical dataset versioning | Subtle temporal leaks in complex corporate action re-indexing |
-| **3. High Computational Load During Backtests** | Server resource exhaustion, API unresponsiveness | Asynchronous worker isolation (Celery), per-user concurrency quotas, resource limits | Sizing hardware requirements for extreme multi-asset Monte Carlo runs |
-| **4. Regime Model Non-Convergence / Numerical Instability** | Model fitting exceptions, infinite loops | Enforced iteration timeouts, fallback initializations, standard covariance regularization | Solver convergence quirks on near-singular feature covariance matrices |
-| **5. AI Assistant Hallucination / Unsupported Claims** | Misleading research interpretations, reputational damage | Strict grounding retrieval pipelines, structured prompt templates, output validation filters | Non-deterministic edge cases in foundation model reasoning |
-| **6. Market Data Storage Bloat** | High disk consumption, degraded query latency | Hypertables with automated chunking, columnar data compression, data retention policies | Multi-decade tick-level storage capacity planning |
-| **7. Contributor Architecture Drift** | Architectural fragmentation, leaking module boundaries | Automated import linters in CI, interface compliance test suites, strict code review against ADRs | Community contributor onboarding friction |
-| **8. External Data Redistribution Restrictions** | Legal / licensing violations for self-hosters | Strict platform terms, raw export restrictions, clear user-provided API key architecture | Evolving intellectual property policies of commercial market exchanges |
+|------|:------:|---------------------|----------------------|
+| **Provider instability** | High | Adapter abstraction ([ADR-0002](./decisions/ADR-0002-data-provider-abstraction.md), [ADR-0004](./decisions/ADR-0004-provider-abstraction-pattern.md)) with circuit breakers and fallback adapters | Upstream vendor service availability & rate quota limits |
+| **Historical data quality** | High | Multi-gate validation pipeline (Gates 1 & 2 in [DATA_FLOW.md](./DATA_FLOW.md)) and quarantine store | Source vendor reporting anomalies & calendar adjustments |
+| **ML instability** | Medium / High | Common model abstraction ([ADR-0003](./decisions/ADR-0003-regime-model-abstraction.md), [ADR-0005](./decisions/ADR-0005-regime-detector-interface-design.md)) & convergence timeouts | Model-specific numerical quirks & covariance singularity |
+| **AI hallucination** | High | Read-only grounding retrieval, zero raw database access, and automated anti-advisory output validation | Non-deterministic behaviors in commercial foundation LLMs |
+| **Backtest computational cost** | Medium / High | Asynchronous Celery worker pools ([ADR-0001](./decisions/ADR-0001-architecture-style.md)) and per-user concurrency limits | Resource demand growth during deep multi-asset simulations |
+| **Storage growth** | Medium | TimescaleDB hypertable chunking, columnar compression, and data retention policies | Long-term dataset expansion across high-frequency tick data |
+| **Licensing restrictions** | High | Provider licensing metadata tracking, user-provided API key model, and raw redistribution blocks | Evolving intellectual property rules of commercial exchanges |
+| **Architecture drift** | Medium | Mandatory ADR process, import boundary linters in CI, and interface compliance suites | Contributor discipline as open-source participation expands |
 
 ---
 
 ## 12. Disclaimer
 
 RegimeX is an open-source research and analytics platform. It does not provide financial advice, investment recommendations, or guarantees of profit. All architecture and systems described herein are designed solely for quantitative market research and educational intelligence.
+
