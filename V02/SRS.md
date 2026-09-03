@@ -1910,6 +1910,1870 @@ The following decisions are unresolved as of V02. They will be addressed through
 
 ---
 
+## 18. Non-Functional Requirements
+
+Non-functional requirements define **how** RegimeX must operate — the quality attributes that apply across all functional domains. They constrain architecture, implementation, and operational decisions from V03 onward.
+
+> ⚠️ **None of these NFRs are implemented in V01 or V02.** Implementation begins in V04+. Where production targets depend on capacity planning or architecture decisions not yet made, targets are marked **TBD**.
+
+**Priority Legend** is the same as Section 9.
+
+**NFR Category Codes:**
+
+| Code | Category |
+|------|----------|
+| PERF | Performance |
+| SEC | Security |
+| AVAIL | Availability |
+| SCALE | Scalability |
+| REL | Reliability |
+| OBS | Observability |
+| ACC | Accessibility |
+| PRIV | Privacy |
+| MAINT | Maintainability |
+| COMPAT | Compatibility |
+| DR | Disaster Recovery |
+| DQ | Data Quality |
+| AUDIT | Auditability |
+| COMP | Compliance & Financial Disclaimer |
+| OPS | Operational Constraints |
+
+---
+
+### Category 1 — Performance
+
+---
+
+#### NFR-001 — Interactive API Response Time
+
+**Category:** Performance
+**Priority:** P1 — High
+**Description:**
+The system shall deliver predictable response times for interactive API operations under normal production workload. Interactive operations are those that a human user waits for in real time: regime queries, instrument lookups, risk metric retrieval, and current-regime dashboards.
+
+**Target:** p95 latency ≤ 500 ms for regime query, discovery, and risk metric endpoints under the defined production workload. Final target: TBD during architecture and capacity planning.
+
+**Acceptance Criteria:**
+- Response time is measurable via an agreed-upon load test profile.
+- p95 latency for interactive endpoints is recorded in CI performance benchmarks.
+- Degradation beyond the target is observable via metrics (NFR-046).
+- The target is finalized and documented before V26 (Production Deployment).
+
+---
+
+#### NFR-002 — Market Data Retrieval Performance
+
+**Category:** Performance
+**Priority:** P1 — High
+**Description:**
+The system shall retrieve one year of daily OHLCV data for a single instrument within an acceptable interactive response time.
+
+**Target:** p95 latency ≤ 1,000 ms for one-year OHLCV retrieval. Final target: TBD during capacity planning.
+
+**Acceptance Criteria:**
+- Data retrieval is benchmarked for standard instruments and date ranges.
+- The target is validated against actual storage query performance before V26.
+
+---
+
+#### NFR-003 — Feature Computation Performance
+
+**Category:** Performance
+**Priority:** P2 — Medium
+**Description:**
+The system shall compute all registered features for a single instrument over a multi-year date range within an acceptable background processing time.
+
+**Target:** Feature computation for one instrument over five years of daily data: TBD during implementation planning.
+
+**Acceptance Criteria:**
+- Feature computation time is measurable per instrument and date range.
+- Computation time is tracked and reported in CI benchmarks.
+- Users are not blocked waiting for feature computation — it executes asynchronously where necessary.
+
+---
+
+#### NFR-004 — Regime Detection Performance
+
+**Category:** Performance
+**Priority:** P2 — Medium
+**Description:**
+Regime detection runs over historical data are computationally intensive and shall execute as asynchronous background jobs. Users submit a detection job and poll for results. The elapsed wall-clock time for a standard detection run shall be documented as a performance benchmark.
+
+**Target:** HMM detection for a single instrument over five years of daily data, three regimes: TBD during V08 implementation.
+
+**Acceptance Criteria:**
+- Detection runs execute asynchronously and return a job ID immediately.
+- Job completion time is recorded and accessible in job metadata.
+- The benchmark result is documented before V26.
+
+---
+
+#### NFR-005 — Backtest Execution Performance
+
+**Category:** Performance
+**Priority:** P2 — Medium
+**Description:**
+Backtesting is a computationally expensive asynchronous operation. The platform shall execute a standard daily backtest over a multi-year history within an acceptable elapsed time.
+
+**Target:** Daily bar-by-bar backtest over ten years of data for a single-instrument strategy: TBD during V14 implementation.
+
+**Acceptance Criteria:**
+- Backtest runs execute asynchronously and return a job ID immediately.
+- Elapsed time is recorded in backtest result metadata.
+- The benchmark is documented before V26.
+
+---
+
+#### NFR-006 — Web Platform Initial Load
+
+**Category:** Performance
+**Priority:** P1 — High
+**Description:**
+The web platform shall load its primary dashboard within an acceptable time on a standard broadband connection so that users are not deterred by initial loading delay.
+
+**Target:** Largest Contentful Paint (LCP) ≤ 2.5 seconds on a standard broadband connection (consistent with Google Core Web Vitals "Good" threshold).
+
+**Acceptance Criteria:**
+- LCP is measurable using standard browser tooling.
+- LCP is measured and reported as part of the web platform CI pipeline.
+- LCP target is met before V26.
+
+---
+
+#### NFR-007 — Concurrent Request Capacity
+
+**Category:** Performance
+**Priority:** P1 — High
+**Description:**
+The API shall handle concurrent requests from multiple authenticated users without degradation of interactive response times beyond the defined targets.
+
+**Target:** Minimum concurrent authenticated user capacity: TBD during architecture and capacity planning.
+
+**Acceptance Criteria:**
+- Load tests simulate concurrent users at the target concurrency level.
+- p95 response times remain within NFR-001 targets under the target concurrency.
+- The concurrency target is defined and validated before V26.
+
+---
+
+#### NFR-008 — Background Workload Isolation
+
+**Category:** Performance
+**Priority:** P1 — High
+**Description:**
+Computationally expensive background workloads (regime detection, backtest execution, bulk feature computation) shall not degrade interactive API response times.
+
+**Acceptance Criteria:**
+- Background jobs execute in an isolated processing context that does not share resources with interactive API handlers.
+- Interactive API p95 latency is measured both with and without background jobs running.
+- Degradation of interactive response time attributable to background jobs shall not exceed 20% above the baseline target.
+
+---
+
+### Category 2 — Security
+
+---
+
+#### NFR-009 — Authentication Requirement
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+All non-public API endpoints shall require authenticated requests. Requests without valid credentials shall be rejected before any business logic is executed.
+
+**Acceptance Criteria:**
+- Every protected endpoint returns HTTP 401 for unauthenticated requests.
+- Authentication is validated in automated API tests.
+- No protected endpoint is accessible without valid credentials.
+
+---
+
+#### NFR-010 — Authorization and Least Privilege
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+The system shall enforce role-based authorization. Users and API clients shall be granted only the minimum permissions required for their role. No role shall have access to capabilities beyond those defined for that role.
+
+**Acceptance Criteria:**
+- A Researcher-tier key cannot access Administrator-only endpoints.
+- A Public (unauthenticated) session cannot access Researcher-tier endpoints.
+- Role boundaries are tested in automated authorization tests.
+
+---
+
+#### NFR-011 — Secret and Credential Management
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+No credentials, API keys, database passwords, or secrets of any kind shall appear in source code, configuration files tracked by version control, logs, or API responses.
+
+**Acceptance Criteria:**
+- A secret-scanning tool runs in CI and blocks merges that introduce detected secrets.
+- Application configuration is loaded from environment variables or a secrets manager, not from committed files.
+- No secret appears in plaintext in any log output.
+- Automated tests verify that secrets are not returned in API responses.
+
+---
+
+#### NFR-012 — Input Validation and Sanitization
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+All inputs received by the platform — API request bodies, query parameters, path parameters, and uploaded data — shall be validated and sanitized before processing. Malformed inputs shall be rejected with a structured error before reaching business logic.
+
+**Acceptance Criteria:**
+- All API endpoint schemas define explicit type and format constraints.
+- Schema validation runs before any business logic handler executes.
+- Inputs failing validation return HTTP 400 with a `VALIDATION_ERROR` code.
+- Penetration tests verify the absence of injection vulnerabilities (SQL injection, command injection) before production release.
+
+---
+
+#### NFR-013 — Injection Attack Prevention
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+The platform shall prevent injection attacks including but not limited to SQL injection, command injection, and prompt injection in the AI assistant.
+
+**Acceptance Criteria:**
+- All database queries use parameterized queries or an ORM with parameterized query support.
+- No user-provided input is interpolated directly into executed queries or shell commands.
+- AI assistant inputs are sanitized and not directly injected into LLM system prompts without review.
+- Security testing verifies injection prevention before V26.
+
+---
+
+#### NFR-014 — Session Security
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+Authenticated sessions shall be secured through token expiry, revocability, and secure transmission.
+
+**Acceptance Criteria:**
+- JWT access tokens expire after a configurable duration (default: 1 hour).
+- API keys can be revoked by administrators and users.
+- Revoked tokens are rejected immediately on the next request.
+- Tokens are never transmitted over unencrypted connections in production.
+- Refresh tokens are single-use or otherwise protected against replay.
+
+---
+
+#### NFR-015 — Transport Security
+
+**Category:** Security
+**Priority:** P0 — Critical
+**Description:**
+All data transmitted between clients and the platform shall be encrypted in transit using TLS in production deployments.
+
+**Acceptance Criteria:**
+- The platform does not serve API or web content over unencrypted HTTP in production.
+- TLS version is TLS 1.2 or later.
+- TLS configuration is verified by an automated check in the deployment pipeline.
+
+---
+
+#### NFR-016 — Rate Limiting and Abuse Prevention
+
+**Category:** Security
+**Priority:** P1 — High
+**Description:**
+The platform shall enforce rate limits per authenticated identity to prevent abuse, accidental resource exhaustion, and denial-of-service.
+
+**Acceptance Criteria:**
+- Rate limits are applied per API key and per session.
+- Rate limit headers are returned on every response.
+- Requests exceeding the rate limit receive HTTP 429 with a `Retry-After` header.
+- Rate limits are configurable without code changes.
+
+---
+
+#### NFR-017 — Dependency Vulnerability Management
+
+**Category:** Security
+**Priority:** P1 — High
+**Description:**
+The platform shall maintain a dependency vulnerability management process to identify and remediate known vulnerabilities in third-party libraries.
+
+**Acceptance Criteria:**
+- A dependency vulnerability scanning tool runs in CI.
+- High and critical severity CVEs block merges until remediated.
+- A process exists for triaging and tracking medium severity CVEs.
+
+---
+
+#### NFR-018 — Container Security
+
+**Category:** Security
+**Priority:** P1 — High
+**Description:**
+Container images shall be built and operated following security best practices.
+
+**Acceptance Criteria:**
+- Production container images do not run processes as root.
+- Base images are pinned to specific versions, not floating `latest` tags.
+- Container images are scanned for known vulnerabilities before deployment.
+
+---
+
+#### NFR-019 — Security Event Logging
+
+**Category:** Security
+**Priority:** P1 — High
+**Description:**
+Security-relevant events shall be logged with sufficient detail for investigation and incident response.
+
+**Acceptance Criteria:**
+- The following events are logged: authentication successes, authentication failures, authorization denials, API key creation, API key revocation, administrative configuration changes.
+- Security logs include: event type, actor identity, timestamp, IP address, and resource affected.
+- Security logs are structured (machine-parseable).
+- Security logs are not accessible to non-administrator users via the API.
+
+---
+
+#### NFR-020 — Output Sanitization
+
+**Category:** Security
+**Priority:** P1 — High
+**Description:**
+All API responses and web platform output shall be sanitized to prevent content injection (e.g., XSS) in clients that render dynamic content.
+
+**Acceptance Criteria:**
+- API responses containing user-provided string data sanitize HTML metacharacters.
+- The web platform Content Security Policy (CSP) header is configured to restrict script execution.
+- XSS prevention is verified in security testing before V26.
+
+---
+
+### Category 3 — Availability
+
+---
+
+#### NFR-021 — API Availability Target
+
+**Category:** Availability
+**Priority:** P1 — High
+**Description:**
+The platform API shall maintain a defined availability target in production deployments. The availability target is not yet established — it will be determined during architecture and capacity planning with reference to hosting infrastructure.
+
+**Target:** Initial production SLO: TBD. To be established before V26 (Production Deployment).
+
+**Acceptance Criteria:**
+- An availability SLO is defined and documented before V26.
+- Uptime is monitored and reported using a health endpoint (see NFR-048).
+- Availability is calculated as the fraction of time the API correctly responds to health checks.
+
+---
+
+#### NFR-022 — Graceful Degradation
+
+**Category:** Availability
+**Priority:** P1 — High
+**Description:**
+When an optional external dependency (market data provider, AI provider, cache) is unavailable, the platform shall degrade gracefully rather than becoming entirely unavailable.
+
+**Acceptance Criteria:**
+- Market data provider unavailability results in a `SERVICE_UNAVAILABLE` response for data endpoints, while regime and risk endpoints with cached data remain operational.
+- AI provider unavailability results in a graceful degradation message from the AI assistant, not an unhandled error.
+- Cache unavailability results in a fallthrough to the storage layer, not a service failure.
+- Degradation behavior is covered by integration tests.
+
+---
+
+#### NFR-023 — Market Data Provider Outage Handling
+
+**Category:** Availability
+**Priority:** P1 — High
+**Description:**
+The platform shall handle market data provider outages without corrupting stored data or blocking unaffected capabilities.
+
+**Acceptance Criteria:**
+- A provider outage does not corrupt previously ingested data.
+- Ingestion jobs that fail due to provider outages are retried with backoff.
+- Failed ingestion jobs are recorded with their error reason and are retryable.
+- Platform capabilities that do not require fresh data (historical regime queries, backtest result retrieval) continue operating during a provider outage.
+
+---
+
+#### NFR-024 — Recovery Time Expectation
+
+**Category:** Availability
+**Priority:** P1 — High
+**Description:**
+Following a service restart or infrastructure failure, the platform shall return to a healthy, request-serving state within a defined time.
+
+**Target:** Recovery time objective (RTO): TBD. To be established during infrastructure planning in V26.
+
+**Acceptance Criteria:**
+- Recovery from a clean container restart is measurable.
+- The RTO target is defined before V26.
+- Automated health checks detect recovery completion.
+
+---
+
+#### NFR-025 — Health Check Endpoints
+
+**Category:** Availability
+**Priority:** P0 — Critical
+**Description:**
+The platform shall expose service-level health and readiness endpoints for orchestration and monitoring systems.
+
+**Acceptance Criteria:**
+- `GET /api/v1/health` returns HTTP 200 when the service process is running, regardless of dependency state.
+- `GET /api/v1/ready` returns HTTP 200 only when all required dependencies (storage, etc.) are connected and functional.
+- Both endpoints are unauthenticated and respond within 500 ms.
+- Orchestration systems (e.g., Docker health checks) can use these endpoints without additional configuration.
+
+---
+
+### Category 4 — Scalability
+
+---
+
+#### NFR-026 — Stateless API Layer
+
+**Category:** Scalability
+**Priority:** P1 — High
+**Description:**
+The API layer shall be stateless so that multiple API instances can serve requests without shared in-process state. This enables horizontal scaling.
+
+**Acceptance Criteria:**
+- No session state is stored in API process memory.
+- Any API instance can serve any authenticated request.
+- Horizontal scaling of the API layer can be achieved by adding instances behind a load balancer without configuration changes.
+
+---
+
+#### NFR-027 — Horizontal API Scaling
+
+**Category:** Scalability
+**Priority:** P1 — High
+**Description:**
+The platform shall support adding API capacity by deploying additional API instances, without requiring architectural redesign.
+
+**Acceptance Criteria:**
+- The platform can run with two or more API instances behind a load balancer.
+- Load balancing can be achieved without sticky sessions.
+- This is validated in infrastructure testing before V26.
+
+---
+
+#### NFR-028 — Market Data Storage Scalability
+
+**Category:** Scalability
+**Priority:** P1 — High
+**Description:**
+The market data storage layer shall scale to accommodate a growing volume of historical OHLCV records without requiring schema redesign.
+
+**Target:** The storage layer shall accommodate at least 50 million OHLCV records without query performance degradation. Final target: TBD during V06 storage design.
+
+**Acceptance Criteria:**
+- The storage schema and indexing strategy are designed to scale to the target record count.
+- Performance benchmarks are run at the target record count before V26.
+
+---
+
+#### NFR-029 — Instrument Catalogue Scalability
+
+**Category:** Scalability
+**Priority:** P2 — Medium
+**Description:**
+Adding new supported instruments shall not require schema migrations or architectural changes.
+
+**Acceptance Criteria:**
+- A new instrument can be added to the catalogue by inserting a record — not by modifying schema definitions.
+- Feature computation and regime detection support any instrument in the catalogue without code changes.
+
+---
+
+#### NFR-030 — Feature and Model Plugin Scalability
+
+**Category:** Scalability
+**Priority:** P1 — High
+**Description:**
+Adding new regime detection algorithms or quantitative features shall not require modifications to the core platform codebase — only plugin registration.
+
+**Acceptance Criteria:**
+- A new algorithm can be registered without modifying core regime detection consumers.
+- A new feature can be registered without modifying the feature computation pipeline.
+- Plugin registration is tested in the CI pipeline.
+
+---
+
+#### NFR-031 — Background Job Scalability
+
+**Category:** Scalability
+**Priority:** P2 — Medium
+**Description:**
+The background processing system shall support increasing the number of concurrent background jobs by adding worker capacity, without architectural redesign.
+
+**Target:** Minimum concurrent background job capacity: TBD during V03 architecture.
+
+**Acceptance Criteria:**
+- The background processing architecture is designed for horizontal worker scaling.
+- The target concurrent job capacity is defined before V26.
+
+---
+
+### Category 5 — Reliability
+
+---
+
+#### NFR-032 — Research Reproducibility
+
+**Category:** Reliability
+**Priority:** P0 — Critical
+**Description:**
+Identical inputs — same data version, algorithm version, feature version, and configuration — shall produce identical outputs across all platform computations. Research reproducibility is a fundamental product guarantee.
+
+**Acceptance Criteria:**
+- Re-running a feature computation with the same inputs produces byte-identical results.
+- Re-running a regime detection run with the same configuration produces identical regime labels.
+- Re-running a backtest with the same configuration produces identical performance metrics.
+- Reproducibility is verified by automated tests for all core computation modules.
+
+---
+
+#### NFR-033 — Retry with Backoff
+
+**Category:** Reliability
+**Priority:** P1 — High
+**Description:**
+Transient failures in external dependencies (market data providers, AI providers, storage) shall be retried automatically using exponential backoff before propagating a failure response.
+
+**Acceptance Criteria:**
+- Retry logic is applied to all external dependency calls.
+- Retry parameters (max attempts, backoff factor, jitter) are configurable.
+- Retry exhaustion produces a structured error, not an unhandled exception.
+- Retry behavior is tested with simulated transient failures.
+
+---
+
+#### NFR-034 — Idempotent Operations
+
+**Category:** Reliability
+**Priority:** P0 — Critical
+**Description:**
+All write operations — data ingestion, job submission, result storage — shall be idempotent. Executing the same operation multiple times shall produce the same result as executing it once.
+
+**Acceptance Criteria:**
+- Re-running data ingestion for the same symbol and date range does not produce duplicate records.
+- Re-submitting an identical job does not create duplicate jobs.
+- Idempotency is verified by automated tests for all write operations.
+
+---
+
+#### NFR-035 — Failure Isolation
+
+**Category:** Reliability
+**Priority:** P1 — High
+**Description:**
+A failure in one platform module shall not propagate to unrelated modules or cause cascading service failure.
+
+**Acceptance Criteria:**
+- A failed background job does not terminate the API service.
+- A failed data ingestion job does not affect regime detection or backtesting endpoints.
+- Module failure boundaries are validated by integration tests.
+
+---
+
+#### NFR-036 — Atomic Writes
+
+**Category:** Reliability
+**Priority:** P0 — Critical
+**Description:**
+All write operations to persistent storage shall be atomic. A partial write — resulting from a failure mid-operation — shall not leave storage in a corrupt or inconsistent state.
+
+**Acceptance Criteria:**
+- Storage write operations use transactions or equivalent atomic write guarantees.
+- A simulated failure during write is tested to confirm no partial record is stored.
+- Idempotent re-execution after a failed write produces a correct complete result.
+
+---
+
+#### NFR-037 — Background Job Recovery
+
+**Category:** Reliability
+**Priority:** P1 — High
+**Description:**
+Background jobs that fail during execution shall be recorded as failed with a diagnostic reason, and shall be retryable without data corruption.
+
+**Acceptance Criteria:**
+- Failed jobs are persisted with status `failed` and an error message.
+- Failed jobs can be retried by an administrator or the job scheduler.
+- Retrying a failed job does not corrupt results from a prior successful run of the same job.
+
+---
+
+#### NFR-038 — Silent Corruption Prevention
+
+**Category:** Reliability
+**Priority:** P0 — Critical
+**Description:**
+No failure, error, or edge case shall result in invalid data being silently stored as valid data, or invalid computation results being silently presented as valid results.
+
+**Acceptance Criteria:**
+- All data writes include validity checks before commit.
+- Computation failures produce error records — not default or zero values presented as real results.
+- Invalid regime outputs, feature values, and backtest results are flagged, not silently accepted.
+- Automated tests verify that simulated failures produce error states, not silent incorrect results.
+
+---
+
+### Category 6 — Observability
+
+---
+
+#### NFR-039 — Structured Logging
+
+**Category:** Observability
+**Priority:** P0 — Critical
+**Description:**
+All platform services shall emit logs in structured JSON format. Unstructured or free-text-only logs are not acceptable for production services.
+
+**Acceptance Criteria:**
+- All log events are JSON-formatted.
+- All log events include at minimum: `timestamp` (UTC ISO 8601), `level`, `service`, `message`, and `request_id` where applicable.
+- Log output is parseable by standard log aggregation systems without custom parsing.
+
+---
+
+#### NFR-040 — API Request Logging
+
+**Category:** Observability
+**Priority:** P0 — Critical
+**Description:**
+Every API request shall produce a structured log event containing sufficient information to diagnose request behavior without access to client systems.
+
+**Acceptance Criteria:**
+- Every request log includes: HTTP method, path, query parameters (redacted for sensitive values), HTTP status code, response latency, and authenticated user identity (where applicable).
+- `request_id` is consistent between the log entry and the API response `meta.request_id`.
+
+---
+
+#### NFR-041 — Key Platform Metrics
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+The platform shall emit metrics for key operational indicators, enabling operators to assess platform health and detect problems early.
+
+**Required Metrics:**
+- API request rate (by endpoint)
+- API error rate (by endpoint and error code)
+- API response latency percentiles (p50, p95, p99)
+- Background job queue depth
+- Background job failure rate
+- Data ingestion throughput (bars/second)
+- Data ingestion failure rate
+- Cache hit rate (if cache is deployed)
+- Storage query latency
+
+**Acceptance Criteria:**
+- All listed metrics are emitted and observable via a metrics system.
+- Metric names and labels follow a consistent naming convention.
+- Metrics are emitted in a format compatible with standard monitoring systems.
+
+---
+
+#### NFR-042 — Distributed Tracing
+
+**Category:** Observability
+**Priority:** P2 — Medium
+**Description:**
+The platform shall support distributed tracing to link an API request to its downstream storage queries, cache lookups, and background job dispatches.
+
+**Acceptance Criteria:**
+- A trace context (trace ID, span ID) is propagated through all service calls originating from an API request.
+- Traces are viewable in a trace analysis tool.
+- `request_id` maps to the corresponding trace.
+
+---
+
+#### NFR-043 — Data Freshness Monitoring
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+The platform shall monitor and expose the freshness of ingested market data, enabling operators to detect stale or missing data.
+
+**Acceptance Criteria:**
+- The last successful ingestion timestamp per instrument is recorded and queryable.
+- An alert condition is defined for instruments whose last ingestion exceeds an expected freshness threshold.
+- Freshness status is accessible via a monitoring endpoint or metric.
+
+---
+
+#### NFR-044 — Job Status Observability
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+The current and historical status of background jobs (regime detection, backtest, ingestion) shall be queryable by users and operators.
+
+**Acceptance Criteria:**
+- Every job has a queryable status: `pending`, `running`, `completed`, `failed`.
+- Failed jobs expose a structured error reason.
+- Job queue depth and throughput are observable via metrics.
+
+---
+
+#### NFR-045 — Dependency Health Monitoring
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+The platform shall monitor the health of its external dependencies (data providers, storage, AI provider) and surface dependency health to operators.
+
+**Acceptance Criteria:**
+- The `/ready` endpoint reflects dependency health.
+- Unhealthy dependencies produce an observable alert condition.
+- Dependency health is included in platform status dashboards.
+
+---
+
+#### NFR-046 — Performance Degradation Alerting
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+The platform shall define and enforce alert conditions for performance degradation beyond defined thresholds.
+
+**Required Alert Conditions:**
+- API error rate exceeds 1% over a rolling window.
+- p95 API response time exceeds 2× the defined SLO target.
+- Ingestion failure rate exceeds a defined threshold.
+- Background job queue depth exceeds a defined threshold.
+
+**Acceptance Criteria:**
+- Alert conditions are defined as code (not manual configuration).
+- Alerts fire correctly in test environments with injected failures.
+- Alert thresholds are tunable without code changes.
+
+---
+
+#### NFR-047 — Operational Incident Diagnostics
+
+**Category:** Observability
+**Priority:** P1 — High
+**Description:**
+Observability tooling shall enable an operator to answer the following questions for any production incident, without requiring access to source code or production systems directly:
+
+- What failed?
+- When did it fail?
+- Which component failed?
+- What data version, model version, or job was involved?
+- Can the system safely recover?
+
+**Acceptance Criteria:**
+- Logs, metrics, and traces collectively cover the five questions above.
+- An incident runbook template is defined that maps these questions to observability sources.
+
+---
+
+#### NFR-048 — Health Endpoint Requirements
+
+**Category:** Observability
+**Priority:** P0 — Critical
+**Description:**
+Platform health endpoints shall be lightweight, always available, and return structured responses.
+
+**Acceptance Criteria:**
+- `GET /api/v1/health` response includes: service name, status (`healthy`/`unhealthy`), and timestamp.
+- `GET /api/v1/ready` response includes: overall readiness status and per-dependency readiness.
+- Both endpoints respond within 500 ms under all conditions.
+- Both endpoints are unauthenticated.
+
+---
+
+### Category 7 — Accessibility
+
+---
+
+#### NFR-049 — Accessibility Standard Target
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+The RegimeX web platform shall be designed and built to target WCAG 2.1 Level AA conformance. This is a design target — conformance is not claimed until validated by accessibility testing during the web platform volumes (V18–V20).
+
+**Acceptance Criteria:**
+- WCAG 2.1 Level AA is documented as the accessibility target before web platform implementation begins.
+- Accessibility requirements are incorporated into the web platform design specifications in V18.
+- Automated accessibility testing tools are included in the web platform CI pipeline.
+
+---
+
+#### NFR-050 — Keyboard Navigation
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+All interactive elements in the web platform shall be navigable and operable using a keyboard alone.
+
+**Acceptance Criteria:**
+- All buttons, links, form controls, and navigation elements are reachable via Tab key navigation.
+- Focus indicators are visible on all interactive elements.
+- No keyboard trap exists anywhere in the application.
+
+---
+
+#### NFR-051 — Semantic HTML Structure
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+The web platform shall use semantic HTML elements to communicate document structure and interactive element roles.
+
+**Acceptance Criteria:**
+- Headings use `<h1>`–`<h6>` in a logical hierarchy.
+- Navigation uses `<nav>`.
+- Page landmark regions use appropriate ARIA landmark roles or semantic elements.
+- Interactive elements are implemented using native HTML controls where practical.
+
+---
+
+#### NFR-052 — Color Contrast
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+Text content in the web platform shall meet minimum color contrast ratios to be readable by users with low vision or color deficiency.
+
+**Target:** WCAG 2.1 Level AA contrast ratio: ≥ 4.5:1 for normal text, ≥ 3:1 for large text.
+
+**Acceptance Criteria:**
+- Contrast ratios are checked using automated accessibility tooling.
+- Color is not the sole visual means of conveying information (e.g., regime states use labels, not only color).
+
+---
+
+#### NFR-053 — Screen-Reader Compatibility
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+Primary user flows in the web platform shall be operable and understandable with a screen reader.
+
+**Acceptance Criteria:**
+- Page titles, landmark regions, and interactive controls are announced correctly by screen readers.
+- Dynamic content updates (e.g., regime state change, job completion) are communicated via ARIA live regions where applicable.
+- Form validation errors are announced to screen readers.
+
+---
+
+#### NFR-054 — Accessible Data Visualizations
+
+**Category:** Accessibility
+**Priority:** P2 — Medium
+**Description:**
+Data visualizations (regime timelines, charts) shall provide text alternatives or structured data tables for users who cannot perceive the visual representation.
+
+**Acceptance Criteria:**
+- Every chart or visualization has a text description or linked data table.
+- Key data points are accessible without requiring the ability to interpret the visual chart.
+
+---
+
+#### NFR-055 — Reduced-Motion Support
+
+**Category:** Accessibility
+**Priority:** P2 — Medium
+**Description:**
+The web platform shall respect the user's operating system preference for reduced motion, minimizing or disabling non-essential animations.
+
+**Acceptance Criteria:**
+- The platform implements `prefers-reduced-motion` media query support.
+- Decorative animations are suppressed when reduced-motion is preferred.
+- No content becomes inaccessible when animations are suppressed.
+
+---
+
+#### NFR-056 — Responsive Layout
+
+**Category:** Accessibility
+**Priority:** P1 — High
+**Description:**
+The web platform shall be usable at a range of viewport widths, supporting desktop, tablet, and large mobile viewports without horizontal scrolling or overlapping content.
+
+**Target Viewports:** Desktop (≥ 1280px), Tablet (≥ 768px). Mobile support: TBD.
+
+**Acceptance Criteria:**
+- No horizontal scrollbar appears at the target viewport widths.
+- Content does not overlap at target viewport widths.
+- Navigation is fully operable at target viewport widths.
+
+---
+
+### Category 8 — Privacy
+
+---
+
+#### NFR-057 — Data Minimization
+
+**Category:** Privacy
+**Priority:** P1 — High
+**Description:**
+The platform shall collect and store only the user data necessary to provide the requested service. Data collection beyond operational necessity is prohibited.
+
+**Acceptance Criteria:**
+- User account data is limited to: identifier, credentials (hashed), role, and API key references.
+- No behavioral tracking or analytics beyond operational logs is implemented without a documented privacy decision.
+- A data inventory is maintained identifying every category of personal data stored.
+
+---
+
+#### NFR-058 — Research Configuration Privacy
+
+**Category:** Privacy
+**Priority:** P1 — High
+**Description:**
+User-created research configurations, saved strategies, watchlists, and experiment results shall be private to the creating user unless explicitly shared.
+
+**Acceptance Criteria:**
+- A user cannot read another user's private research configurations via the API.
+- API authorization tests verify resource isolation.
+- No research configuration data is returned in bulk listing endpoints visible to other users.
+
+---
+
+#### NFR-059 — AI Conversation Handling
+
+**Category:** Privacy
+**Priority:** P1 — High
+**Description:**
+Conversation history with the AI Research Assistant shall not be shared across user sessions or with other users. The platform shall document how conversation content is transmitted to the AI provider.
+
+**Acceptance Criteria:**
+- Conversation history is scoped to the individual user session.
+- The data handling practices for AI provider transmission are documented before V21 (AI Research Assistant).
+- Users can clear their conversation history.
+
+---
+
+#### NFR-060 — Credential Security
+
+**Category:** Privacy
+**Priority:** P0 — Critical
+**Description:**
+User credentials (passwords, API keys) shall never be stored in plaintext. Passwords shall be hashed using an appropriate modern hashing algorithm. API keys shall be stored only as hashes after initial issuance.
+
+**Acceptance Criteria:**
+- Password storage uses a recognized adaptive hashing algorithm (e.g., bcrypt or Argon2). Algorithm selection: TBD in V17.
+- API keys are returned in plaintext only once, at creation time, and are not recoverable thereafter.
+- Automated tests verify that credentials are not returned or logged in plaintext.
+
+---
+
+#### NFR-061 — Data Retention Policy
+
+**Category:** Privacy
+**Priority:** P2 — Medium
+**Description:**
+The platform shall define and enforce data retention policies covering all categories of stored data.
+
+**Target:** Retention periods for each data category: TBD. Policy to be defined before V26.
+
+**Acceptance Criteria:**
+- A data retention policy is documented before V26.
+- Automated data deletion or archiving processes are implemented per the policy.
+- Deletion is verifiable and auditable.
+
+---
+
+#### NFR-062 — Right to Deletion
+
+**Category:** Privacy
+**Priority:** P2 — Medium
+**Description:**
+The platform shall support deletion of a user's account and associated personal data on request.
+
+**Target:** Specific deletion scope and process: TBD during privacy policy development.
+
+**Acceptance Criteria:**
+- Account deletion removes the user's personal data from the primary data store.
+- The scope of deletion (what is removed, what is retained in logs) is documented.
+
+---
+
+#### NFR-063 — Third-Party Data Handling
+
+**Category:** Privacy
+**Priority:** P1 — High
+**Description:**
+When user queries or data are transmitted to third-party providers (AI/LLM providers, market data providers), the transmission shall be documented and limited to the minimum necessary for the request.
+
+**Acceptance Criteria:**
+- Third-party transmission scope is documented for each integration.
+- User data is not transmitted to third parties beyond what is necessary for the requested operation.
+- Third-party data handling terms are reviewed before integration is deployed.
+
+---
+
+### Category 9 — Maintainability
+
+---
+
+#### NFR-064 — Modular Architecture
+
+**Category:** Maintainability
+**Priority:** P0 — Critical
+**Description:**
+The platform shall be organized into clearly defined, independently testable modules. Each module shall have a single primary responsibility and communicate with other modules through documented interfaces.
+
+**Acceptance Criteria:**
+- Module boundaries are defined in the V03 architecture document.
+- Each module has an explicit public interface and documented internal responsibilities.
+- Cross-module dependencies are documented.
+- A module can be replaced without modifying other modules, provided the interface contract is preserved.
+
+---
+
+#### NFR-065 — Code Coverage
+
+**Category:** Maintainability
+**Priority:** P1 — High
+**Description:**
+Core platform modules shall maintain a minimum automated test coverage level to reduce the risk of undetected regressions.
+
+**Target:** ≥ 85% line coverage for core modules. Coverage targets per module: TBD during V22 (Testing & Reliability).
+
+**Acceptance Criteria:**
+- Coverage is measured and reported in CI.
+- Coverage below the target blocks merge for core module changes.
+- Coverage target per module is defined before V22.
+
+---
+
+#### NFR-066 — Type Annotations
+
+**Category:** Maintainability
+**Priority:** P0 — Critical
+**Description:**
+All public interfaces (functions, methods, classes) in the Python codebase shall be fully type-annotated.
+
+**Acceptance Criteria:**
+- A static type checker (e.g., mypy or pyright) runs in CI.
+- Type checker errors block merges.
+- No untyped public interfaces exist in core modules.
+
+---
+
+#### NFR-067 — Code Documentation
+
+**Category:** Maintainability
+**Priority:** P0 — Critical
+**Description:**
+All public modules, classes, and functions shall have docstrings explaining their purpose, parameters, return values, and any exceptions raised.
+
+**Acceptance Criteria:**
+- A documentation linting tool verifies docstring presence for public symbols.
+- Docstring completeness is a merge requirement for public interfaces.
+
+---
+
+#### NFR-068 — Code Style Enforcement
+
+**Category:** Maintainability
+**Priority:** P1 — High
+**Description:**
+The codebase shall use a consistent formatting and style standard enforced by automated tooling in CI.
+
+**Acceptance Criteria:**
+- A code formatter and linter run in CI and block merges on violations.
+- The formatter and linter configurations are committed to the repository.
+- No manual formatting decisions are required from reviewers.
+
+---
+
+#### NFR-069 — Dependency Management
+
+**Category:** Maintainability
+**Priority:** P1 — High
+**Description:**
+All project dependencies shall be explicitly versioned and managed through a dependency management tool. Unpinned or floating dependencies are not permitted in production builds.
+
+**Acceptance Criteria:**
+- All dependencies are declared with explicit version constraints.
+- A lock file is committed to version control.
+- Dependency upgrades are tested against the full test suite before merge.
+
+---
+
+#### NFR-070 — Interface Versioning
+
+**Category:** Maintainability
+**Priority:** P0 — Critical
+**Description:**
+Breaking changes to public interfaces — including the `RegimeDetector` interface, `Feature` interface, data provider interface, and REST API — shall be versioned and accompanied by a migration guide.
+
+**Acceptance Criteria:**
+- Breaking interface changes increment the relevant version identifier.
+- A migration guide is published with the breaking change.
+- The changelog records all breaking changes.
+
+---
+
+#### NFR-071 — Developer Onboarding
+
+**Category:** Maintainability
+**Priority:** P1 — High
+**Description:**
+A new developer or contributor shall be able to set up a working local development environment by following the documented setup guide.
+
+**Target:** Local environment setup time: ≤ 15 minutes on a machine meeting documented prerequisites.
+
+**Acceptance Criteria:**
+- The setup guide is tested on a clean environment before V27 (Developer Experience).
+- Setup requires only tools listed in documented prerequisites.
+- All setup steps are automatable (e.g., a single script or Makefile target).
+
+---
+
+#### NFR-072 — Technical Debt Tracking
+
+**Category:** Maintainability
+**Priority:** P2 — Medium
+**Description:**
+Known technical debt, temporary workarounds, and deferred implementation decisions shall be tracked in a discoverable, structured way.
+
+**Acceptance Criteria:**
+- Technical debt items are tracked via GitHub Issues labeled `tech-debt`.
+- Temporary code workarounds include a `TODO` comment referencing the tracking issue.
+- Technical debt is reviewed and triaged at least once per volume.
+
+---
+
+### Category 10 — Compatibility
+
+---
+
+#### NFR-073 — Supported Browsers
+
+**Category:** Compatibility
+**Priority:** P1 — High
+**Description:**
+The web platform shall function correctly in the most recent stable versions of major browsers.
+
+**Target:** Latest two major releases of Chrome, Firefox, and Safari. Edge support: TBD.
+
+**Acceptance Criteria:**
+- The platform is tested in the target browser versions before V26.
+- Critical functionality does not require browser-specific APIs not available across targets.
+
+---
+
+#### NFR-074 — Python SDK Compatibility
+
+**Category:** Compatibility
+**Priority:** P1 — High
+**Description:**
+The RegimeX Python SDK shall support a defined range of Python versions.
+
+**Target:** Python 3.10 and later. Exact upper bound: TBD during SDK implementation.
+
+**Acceptance Criteria:**
+- CI runs SDK tests against all supported Python versions.
+- The supported Python version range is documented in the SDK README and `pyproject.toml`.
+
+---
+
+#### NFR-075 — Self-Hosting OS Compatibility
+
+**Category:** Compatibility
+**Priority:** P0 — Critical
+**Description:**
+The platform shall be self-hostable on standard Linux-based hosts with Docker and Docker Compose installed. No proprietary operating system, cloud service, or managed platform is required.
+
+**Acceptance Criteria:**
+- The full platform stack starts with `docker compose up` on a supported Linux distribution.
+- No steps require a cloud provider account or proprietary service.
+- Self-hosting is tested on at least one supported Linux distribution before V24.
+
+---
+
+#### NFR-076 — API Version Compatibility
+
+**Category:** Compatibility
+**Priority:** P0 — Critical
+**Description:**
+The REST API shall maintain backward compatibility within a major version. Clients built against a given major version shall not break due to non-breaking additions (new optional response fields, new endpoints).
+
+**Acceptance Criteria:**
+- New optional fields are added to responses without incrementing the major version.
+- Existing required response fields are never removed or renamed within a major version.
+- API schema changes are tested against a client compatibility test suite.
+
+---
+
+#### NFR-077 — Data Format Compatibility
+
+**Category:** Compatibility
+**Priority:** P1 — High
+**Description:**
+Exported data formats (CSV, Parquet, JSON) shall remain stable across platform versions within a major version, so that downstream tools consuming exports are not broken by platform updates.
+
+**Acceptance Criteria:**
+- Breaking changes to export schemas require a major version increment or a versioned export format identifier.
+- Export format changes are documented in the changelog.
+
+---
+
+#### NFR-078 — Plugin Interface Stability
+
+**Category:** Compatibility
+**Priority:** P1 — High
+**Description:**
+Plugin interfaces (`RegimeDetector`, `Feature`, data provider adapter) shall be stable across minor platform releases. Plugin authors shall not need to update their plugins for minor version upgrades.
+
+**Acceptance Criteria:**
+- Plugin interface changes that break existing plugins require a major version increment.
+- Plugin compatibility is tested in CI using a reference plugin test suite.
+
+---
+
+### Category 11 — Disaster Recovery
+
+---
+
+#### NFR-079 — Automated Database Backups
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+Production database backups shall be automated and run on a regular schedule. Manual backup processes are not acceptable for production deployments.
+
+**Target:** Backup frequency: TBD during infrastructure planning in V26.
+
+**Acceptance Criteria:**
+- Backup jobs run automatically on the defined schedule.
+- Backup success and failure are logged and monitored.
+- A failed backup produces an alert.
+
+---
+
+#### NFR-080 — Backup Integrity Testing
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+Database backups shall be regularly tested for restoreability. An untested backup is not a reliable backup.
+
+**Acceptance Criteria:**
+- A backup restoration test is performed on a defined schedule.
+- Restoration tests verify that restored data is complete and queryable.
+- Test results are logged.
+
+---
+
+#### NFR-081 — Recovery Point Objective (RPO)
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+A maximum acceptable data loss window shall be defined and targeted by the backup strategy.
+
+**Target:** RPO: TBD. To be established during infrastructure planning in V26.
+
+**Acceptance Criteria:**
+- The RPO target is documented before V26.
+- The backup frequency is set to meet the RPO target.
+- The backup strategy is reviewed against the RPO target before production deployment.
+
+---
+
+#### NFR-082 — Recovery Time Objective (RTO)
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+A maximum acceptable recovery time following a data loss event shall be defined.
+
+**Target:** RTO: TBD. To be established during infrastructure planning in V26.
+
+**Acceptance Criteria:**
+- The RTO target is documented before V26.
+- A restoration procedure is documented and timed against the RTO target.
+- The restoration procedure is tested before production deployment.
+
+---
+
+#### NFR-083 — Configuration Backup
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+All platform configuration (environment configuration, ingestion schedules, access control rules) shall be recoverable following infrastructure failure.
+
+**Acceptance Criteria:**
+- Platform configuration is version-controlled (where not secret) or backed up.
+- A recovery procedure for configuration restoration is documented.
+
+---
+
+#### NFR-084 — Data Integrity Verification
+
+**Category:** Disaster Recovery
+**Priority:** P1 — High
+**Description:**
+Following a restoration from backup, the platform shall be able to verify the integrity and completeness of restored data.
+
+**Acceptance Criteria:**
+- A data integrity check procedure is documented.
+- The check verifies record counts, schema integrity, and a sample of key constraints defined in `DATA_CONTRACTS.md`.
+- Integrity check results are logged.
+
+---
+
+### Category 12 — Data Quality
+
+---
+
+#### NFR-085 — Data Completeness Validation
+
+**Category:** Data Quality
+**Priority:** P0 — Critical
+**Description:**
+The platform shall validate that ingested market data is complete relative to the expected trading calendar for the instrument's exchange. Missing trading days are detected and recorded.
+
+**Acceptance Criteria:**
+- Ingestion pipeline compares received bars against the expected trading calendar.
+- Missing bars are recorded in a data quality report.
+- Missing bars are never silently filled with estimated values without explicit documentation.
+
+---
+
+#### NFR-086 — Data Correctness Validation
+
+**Category:** Data Quality
+**Priority:** P0 — Critical
+**Description:**
+The platform shall validate that ingested OHLCV values satisfy basic financial data integrity constraints.
+
+**Required Checks:**
+- `high ≥ low`
+- `high ≥ open`
+- `high ≥ close`
+- `open > 0`, `high > 0`, `low > 0`, `close > 0`
+- `volume ≥ 0`
+
+**Acceptance Criteria:**
+- All listed checks run automatically on every ingested record.
+- Records failing validation are flagged and not accepted into the primary data store as valid.
+- Validation failures are logged and surfaced in the data quality report.
+
+---
+
+#### NFR-087 — Duplicate Detection
+
+**Category:** Data Quality
+**Priority:** P0 — Critical
+**Description:**
+The platform shall detect and prevent duplicate records entering the data store. The canonical uniqueness key for OHLCV data is `(symbol, exchange, timestamp, adjustment_type)`.
+
+**Acceptance Criteria:**
+- The storage layer enforces uniqueness on the OHLCV composite key.
+- Duplicate ingestion attempts are detected and handled idempotently (not inserted as duplicates).
+- Duplicate detection runs before any write operation.
+
+---
+
+#### NFR-088 — Timestamp Integrity
+
+**Category:** Data Quality
+**Priority:** P0 — Critical
+**Description:**
+All timestamps stored by the platform shall be in UTC. No ambiguous, offset-naive, or local-timezone timestamps are stored in production.
+
+**Acceptance Criteria:**
+- Ingestion converts all provider timestamps to UTC before storage.
+- Schema validation enforces UTC-formatted timestamps.
+- Time zone conversion errors are detected and logged.
+
+---
+
+#### NFR-089 — Statistical Anomaly Detection
+
+**Category:** Data Quality
+**Priority:** P1 — High
+**Description:**
+The platform shall flag statistically anomalous OHLCV values that may indicate data errors, feed issues, or corporate action events.
+
+**Acceptance Criteria:**
+- An outlier detection algorithm runs on each ingestion batch.
+- Flagged records are marked with an anomaly indicator and a reason code.
+- Anomalous records are retained in storage but excluded from analytical computations unless explicitly included by the user.
+- The detection methodology is documented.
+
+---
+
+#### NFR-090 — Stale Data Detection
+
+**Category:** Data Quality
+**Priority:** P1 — High
+**Description:**
+The platform shall detect and surface stale data — data that has not been updated within the expected ingestion schedule for the instrument.
+
+**Acceptance Criteria:**
+- The last successful ingestion timestamp per instrument is tracked.
+- Data is considered stale when it exceeds a configurable freshness threshold.
+- Stale data status is surfaced in API responses for affected instruments.
+- Staleness does not cause an error for endpoints that serve historical data only.
+
+---
+
+#### NFR-091 — Symbol Validity
+
+**Category:** Data Quality
+**Priority:** P1 — High
+**Description:**
+The platform shall maintain a validated list of supported instrument symbols. Data stored under an unrecognized symbol shall not be accepted.
+
+**Acceptance Criteria:**
+- Ingestion validates the symbol against the instrument catalogue before storing data.
+- Attempts to ingest data for an unsupported symbol are rejected and logged.
+- Symbol validation errors are included in the data quality report.
+
+---
+
+#### NFR-092 — Corporate Action Consistency
+
+**Category:** Data Quality
+**Priority:** P1 — High
+**Description:**
+Corporate action adjustments (splits, dividends) shall be applied consistently across all records for an affected instrument. Partial or inconsistent adjustments are treated as data quality violations.
+
+**Acceptance Criteria:**
+- Adjustment type is recorded on every record.
+- When adjustment data changes for an instrument, all historical records for that instrument are flagged for re-adjustment.
+- Mixed adjustment types within a single computation are detected and blocked.
+
+---
+
+#### NFR-093 — Feature Computation Data Quality Gate
+
+**Category:** Data Quality
+**Priority:** P0 — Critical
+**Description:**
+Feature computation shall not proceed on data that has failed quality validation. Invalid input data shall produce an invalid feature record — not a silently incorrect feature value.
+
+**Acceptance Criteria:**
+- Feature computation checks input data validity before processing.
+- Records with `is_valid = false` in the feature output schema are produced when input data is invalid.
+- Invalid feature records are not used as inputs to regime detection without explicit handling.
+
+---
+
+### Category 13 — Auditability
+
+---
+
+#### NFR-094 — Analysis Output Provenance
+
+**Category:** Auditability
+**Priority:** P0 — Critical
+**Description:**
+Every platform analysis output (feature values, regime labels, risk metrics, backtest results) shall be fully traceable to its exact inputs and configuration. An operator or researcher shall be able to reproduce any output given the provenance record.
+
+**Required Provenance Fields:**
+- Input dataset version fingerprint
+- Algorithm/model ID and version
+- Feature set ID and version (where applicable)
+- Parameter set (full configuration snapshot)
+- Execution timestamp
+- Software/platform version
+
+**Acceptance Criteria:**
+- All listed provenance fields are stored with every analysis output record.
+- A reproduction test verifies that re-executing with stored provenance metadata produces identical results.
+
+---
+
+#### NFR-095 — API Access Audit Log
+
+**Category:** Auditability
+**Priority:** P1 — High
+**Description:**
+All authenticated API requests shall be logged in an access audit log with sufficient detail to support security investigation and operational review.
+
+**Required Fields:** User identity, HTTP method, path, status code, timestamp, request ID, client IP address.
+
+**Acceptance Criteria:**
+- Access audit logs are produced for all authenticated requests.
+- Access audit logs are structured and parseable.
+- Audit logs are retained for a period defined in the data retention policy (see OQ-006).
+
+---
+
+#### NFR-096 — Administrative Action Audit Log
+
+**Category:** Auditability
+**Priority:** P1 — High
+**Description:**
+All administrative actions (user creation, role changes, API key management, configuration changes) shall be logged in an administrative audit trail.
+
+**Required Fields:** Administrator identity, action type, affected resource, previous state (where applicable), new state, timestamp.
+
+**Acceptance Criteria:**
+- All listed administrative events produce audit log entries.
+- Audit log entries are immutable — they cannot be deleted by any application-level user.
+- Audit logs are accessible to administrators via the platform.
+
+---
+
+#### NFR-097 — Experiment Reproducibility Audit
+
+**Category:** Auditability
+**Priority:** P0 — Critical
+**Description:**
+Every parameterized research experiment shall produce an audit record sufficient to reproduce the experiment independently at a later date.
+
+**Acceptance Criteria:**
+- Experiment audit records are stored and retrievable by experiment ID.
+- The audit record contains all provenance fields from NFR-094.
+- A reproducibility test is included in the test suite validating that stored audit records produce identical results on re-execution.
+
+---
+
+#### NFR-098 — Backtest Configuration Audit
+
+**Category:** Auditability
+**Priority:** P0 — Critical
+**Description:**
+Every backtest run shall store its complete configuration in a form sufficient to reproduce the result independently.
+
+**Required Configuration Elements:** Strategy ID and version, strategy parameters, universe, date range, cost model configuration, initial capital, dataset version, regime run ID (if regime attribution used), execution timestamp, platform version.
+
+**Acceptance Criteria:**
+- All listed configuration elements are stored with every backtest result.
+- A backtest reproduction test verifies that stored configuration produces identical results.
+
+---
+
+### Category 14 — Compliance & Financial Disclaimer
+
+---
+
+#### NFR-099 — No Guaranteed Financial Outcomes
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+No platform output, UI surface, API response, or documentation shall represent analytical results as guaranteed financial outcomes, returns, or predictions.
+
+**Acceptance Criteria:**
+- No platform text claims guaranteed returns or predictions.
+- Backtest results include a disclaimer that historical performance does not guarantee future results.
+- All performance metric displays include appropriate analytical caveats.
+- This requirement is tested through content review during each web platform release.
+
+---
+
+#### NFR-100 — No Personalized Investment Advice
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+The platform — including the AI Research Assistant — shall not construct or deliver personalized investment advice tailored to an individual user's financial situation, goals, or risk tolerance.
+
+**Acceptance Criteria:**
+- No API response or web platform surface constructs a personalized investment recommendation.
+- The AI assistant explicitly declines to provide investment advice when prompted.
+- System prompting for the AI assistant enforces this prohibition.
+- Automated tests verify the AI assistant's refusal of investment advice prompts before V21.
+
+---
+
+#### NFR-101 — Uncertainty Communication
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+All probabilistic platform outputs (regime labels, confidence scores, risk estimates) shall be presented alongside their associated uncertainty measures. The platform shall not present probabilistic results as deterministic facts.
+
+**Acceptance Criteria:**
+- Regime outputs always display confidence scores alongside regime labels.
+- AI assistant responses include uncertainty qualifications for probabilistic claims.
+- Risk metrics display their confidence levels and assumptions.
+- Uncertainty is not omissible from primary output surfaces.
+
+---
+
+#### NFR-102 — Observation vs. Interpretation Distinction
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P1 — High
+**Description:**
+The platform shall distinguish between observed historical facts (data from validated sources) and generated interpretations (model outputs, AI-generated explanations).
+
+**Acceptance Criteria:**
+- API responses clearly label model-generated outputs as such.
+- AI assistant responses distinguish cited platform data from generated interpretation.
+- UI design separates factual data displays from model/AI-generated content.
+
+---
+
+#### NFR-103 — No Fabricated Market Information
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+No platform component shall generate, present, or store market information — prices, returns, regime labels, risk metrics — that is not derived from validated, sourced market data.
+
+**Acceptance Criteria:**
+- All stored market data records reference a validated data source identifier.
+- The AI assistant is prevented from generating market facts not grounded in platform data.
+- Automated tests verify that the AI assistant does not hallucinate market data.
+
+---
+
+#### NFR-104 — Financial Disclaimer Visibility
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+A financial disclaimer shall be displayed on all primary analytical output surfaces of the web platform and included in relevant API response metadata.
+
+**Disclaimer Content (minimum):** *"This platform provides market research and analytics tools for informational purposes only. It does not provide financial advice, investment recommendations, or any guarantee of financial returns. Past performance does not guarantee future results. Users are solely responsible for their own investment decisions."*
+
+**Acceptance Criteria:**
+- The disclaimer is present on the web platform home page, regime dashboard, risk analytics page, and backtest results page.
+- The disclaimer is not dismissible in a way that removes it from the page entirely.
+- A disclaimer acknowledgment is included in the API terms of use documentation.
+
+---
+
+#### NFR-105 — Open-Source License Compliance
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+RegimeX shall be distributed under an open-source license that is declared in the repository. All dependencies shall have licenses compatible with the chosen RegimeX license.
+
+**Target:** License selection: TBD (see OQ-010). Must be decided before V04.
+
+**Acceptance Criteria:**
+- A LICENSE file is present at the repository root before V04.
+- Dependency license compatibility is verified by an automated tool in CI.
+- The chosen license is documented in contributing guidelines.
+
+---
+
+#### NFR-106 — No Unverified Regulatory Claims
+
+**Category:** Compliance & Financial Disclaimer
+**Priority:** P0 — Critical
+**Description:**
+The platform shall not claim regulatory compliance (e.g., SEC registration, FCA authorization, MiFID II compliance) unless such compliance has been formally established.
+
+**Acceptance Criteria:**
+- No marketing copy, documentation, or UI surfaces claim regulatory authorization without verification.
+- Regulatory compliance claims are reviewed by a qualified advisor before publication. Process: TBD.
+
+---
+
+### Category 15 — Operational Constraints
+
+---
+
+#### NFR-107 — External Data Provider Rate Limits
+
+**Category:** Operational Constraints
+**Priority:** P1 — High
+**Description:**
+The platform shall operate within the rate limits imposed by external market data providers. Ingestion pipelines shall implement provider-specific rate limiting to avoid exceeding provider quotas.
+
+**Acceptance Criteria:**
+- Provider adapter implementations include configurable rate limiting parameters.
+- Rate limit errors from providers trigger backoff, not immediate retry.
+- Rate limit configuration is documented per provider adapter.
+
+---
+
+#### NFR-108 — Data Redistribution Restrictions
+
+**Category:** Operational Constraints
+**Priority:** P0 — Critical
+**Description:**
+The platform shall not publicly redistribute raw market data in a manner that violates the licensing terms of the data source. Self-hosted instances are the operator's responsibility for compliance.
+
+**Acceptance Criteria:**
+- Documentation explicitly states that operators are responsible for compliance with their data provider's redistribution terms.
+- The platform does not expose bulk data export endpoints that could be used for mass redistribution without explicit operator configuration and acknowledgment.
+- This constraint is documented before V05 (Market Data Engine).
+
+---
+
+#### NFR-109 — AI Provider Cost Constraints
+
+**Category:** Operational Constraints
+**Priority:** P2 — Medium
+**Description:**
+The AI Research Assistant shall be designed with awareness of per-request AI provider costs. Requests shall include only the context necessary to ground the response, minimizing token usage.
+
+**Acceptance Criteria:**
+- AI provider request context is bounded to a configurable maximum token budget.
+- Context retrieval strategies minimize irrelevant data in the grounding payload.
+- AI request token usage is logged and monitorable.
+
+---
+
+#### NFR-110 — Computational Resource Limits
+
+**Category:** Operational Constraints
+**Priority:** P2 — Medium
+**Description:**
+Background computation jobs (regime detection, backtesting, feature computation) shall enforce resource limits to prevent runaway jobs from exhausting system resources.
+
+**Acceptance Criteria:**
+- Jobs have configurable CPU and memory limits in deployment configuration.
+- Jobs that exceed time limits are terminated and recorded as failed.
+- Resource limit parameters are configurable without code changes.
+
+---
+
+#### NFR-111 — Public API Abuse Prevention
+
+**Category:** Operational Constraints
+**Priority:** P1 — High
+**Description:**
+The public (unauthenticated) API surface shall be protected against abuse, including automated scraping, denial-of-service, and resource exhaustion.
+
+**Acceptance Criteria:**
+- Rate limits are applied to unauthenticated requests by IP address.
+- Responses to rate-limited requests include a `Retry-After` header.
+- Unauthenticated access is limited to a defined subset of read-only endpoints.
+
+---
+
+#### NFR-112 — Storage Growth Management
+
+**Category:** Operational Constraints
+**Priority:** P2 — Medium
+**Description:**
+The platform shall provide operators with visibility into storage growth and tooling to manage data retention.
+
+**Acceptance Criteria:**
+- Storage utilization metrics are available to administrators.
+- Data retention policies (see NFR-061) can be enforced through platform tooling.
+- Operators are warned before storage approaches capacity limits.
+
+---
+
+#### NFR-113 — Background Job Queue Limits
+
+**Category:** Operational Constraints
+**Priority:** P2 — Medium
+**Description:**
+The background job queue shall enforce a per-user concurrency limit to prevent a single user from monopolizing processing resources.
+
+**Acceptance Criteria:**
+- Per-user concurrent job limit is configurable.
+- Attempts to exceed the limit return a structured error.
+- Queue depth is observable via metrics.
+
+---
+
+## 19. SLO / SLA Policy
+
+### Overview
+
+This section defines the framework for RegimeX's service-level objectives and commitments.
+
+As of V02, the platform is in pre-implementation documentation. **No production SLOs or SLAs are established yet.** All targets referenced in this document are marked as **TBD** and must be finalized through architecture and capacity planning before V26 (Production Deployment).
+
+### Definitions
+
+| Term | Definition |
+|------|-----------|
+| **SLI** (Service Level Indicator) | A quantitative measure of a specific service behavior (e.g., p95 request latency). |
+| **SLO** (Service Level Objective) | An internal target for an SLI (e.g., p95 latency ≤ 500 ms). |
+| **SLA** (Service Level Agreement) | An external commitment to a user or customer, usually with consequences for breach. |
+| **Error Budget** | The fraction of time/requests that may fall outside the SLO without triggering remediation. |
+
+### Internal SLO Framework
+
+| Category | SLI | SLO Target |
+|----------|-----|------------|
+| API Availability | Fraction of health check requests returning 200 | TBD — to be established in V26 |
+| Interactive API Latency | p95 response time for regime/discovery/risk endpoints | TBD — draft: ≤ 500 ms |
+| Web Platform Load | Largest Contentful Paint | ≤ 2.5 s (see NFR-006) |
+| Ingestion Reliability | Fraction of scheduled ingestion jobs completing without error | TBD |
+| Background Job Completion | Fraction of submitted jobs completing within defined time | TBD |
+
+### External SLA Commitments
+
+> ⚠️ **RegimeX makes no external SLA commitments as of V02.** The platform is open-source and self-hosted. Self-hosting operators are responsible for their own infrastructure SLAs. If a managed offering is introduced in a future volume, SLA terms will be defined and reviewed at that time.
+
+### TBD Targets
+
+The following SLO targets require completion before V26:
+
+| NFR | Target to Define |
+|-----|----------------|
+| NFR-001 | Interactive API p95 latency |
+| NFR-002 | Market data retrieval p95 latency |
+| NFR-003 | Feature computation time benchmark |
+| NFR-004 | Regime detection time benchmark |
+| NFR-005 | Backtest execution time benchmark |
+| NFR-007 | Concurrent user capacity |
+| NFR-021 | API availability SLO |
+| NFR-024 | Recovery time objective |
+| NFR-031 | Concurrent background job capacity |
+| NFR-079 | Backup frequency |
+| NFR-081 | RPO target |
+| NFR-082 | RTO target |
+
+---
+
+## 20. NFR Traceability
+
+The NFRs extend the traceability model established in Section 14. The full chain is:
+
+```text
+Product Goal (V01/PRODUCT_FOUNDATION.md)
+         ↓
+Product Principle (V01/PRINCIPLES.md)
+         ↓
+Functional Requirement (Section 9 — FR-001 to FR-091)
+         ↓
+Non-Functional Requirement (Section 18 — NFR-001 to NFR-113)
+         ↓
+Architecture Decision (V03 — ADRs, TBD)
+         ↓
+Implementation (V04–V21)
+         ↓
+Test Case (V22 — Testing & Reliability, TBD)
+         ↓
+Release Validation (V29–V30)
+```
+
+### NFR-to-FR Domain Mapping
+
+| NFR Category | Related FR Domains |
+|--------------|-------------------|
+| Performance (NFR-001–008) | All domains — performance applies universally; especially B (Data), D (Regime), G (Backtest), K (API) |
+| Security (NFR-009–020) | K (API Platform), M (Open-Source), L (Developer) |
+| Availability (NFR-021–025) | K (API Platform), B (Market Data), I (AI Assistant) |
+| Scalability (NFR-026–031) | B (Data), C (Features), D (Regime), G (Backtest), K (API), L (Developer) |
+| Reliability (NFR-032–038) | B (Data), C (Features), D (Regime), G (Backtest), H (Research) |
+| Observability (NFR-039–048) | All domains — cross-cutting concern |
+| Accessibility (NFR-049–056) | J (Web Platform) |
+| Privacy (NFR-057–063) | K (API), I (AI Assistant), J (Web Platform) |
+| Maintainability (NFR-064–072) | L (Developer), M (Open-Source) |
+| Compatibility (NFR-073–078) | J (Web Platform), K (API), L (Developer) |
+| Disaster Recovery (NFR-079–084) | B (Market Data), D (Regime), G (Backtest) |
+| Data Quality (NFR-085–093) | A (Discovery), B (Market Data), C (Features), D (Regime) |
+| Auditability (NFR-094–098) | H (Research), D (Regime), G (Backtest), F (Risk) |
+| Compliance & Disclaimer (NFR-099–106) | All user-facing domains |
+| Operational Constraints (NFR-107–113) | B (Market Data), I (AI), K (API) |
+
+---
+
 ## Disclaimer
 
 RegimeX is an open-source research and analytics platform. It does not provide financial advice, personalized investment recommendations, or any guarantee of financial returns. All platform outputs described in this document are for informational and research purposes only. Users are solely responsible for any decisions made based on platform outputs.
