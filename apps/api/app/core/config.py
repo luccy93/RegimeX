@@ -12,15 +12,14 @@ Environment selection is driven by the REGIMEX_ENV variable:
 
 from __future__ import annotations
 
-import os
-from enum import Enum
+from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     """Allowed deployment environments."""
 
     DEVELOPMENT = "development"
@@ -74,7 +73,9 @@ class Settings(BaseSettings):
         ),
     )
     database_pool_size: int = Field(default=10, ge=1, le=100, description="Connection pool size")
-    database_max_overflow: int = Field(default=20, ge=0, le=100, description="Max overflow connections")
+    database_max_overflow: int = Field(
+        default=20, ge=0, le=100, description="Max overflow connections"
+    )
 
     # -------------------------------------------------------------------------
     # Redis — values supplied by deployment environment
@@ -92,7 +93,7 @@ class Settings(BaseSettings):
         description=(
             "Application secret key for signing tokens. "
             "MUST be set via REGIMEX_SECRET_KEY in production. "
-            "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
         ),
     )
     jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
@@ -147,7 +148,7 @@ class Settings(BaseSettings):
         if env == Environment.PRODUCTION and "CHANGE_ME" in value:
             raise ValueError(
                 "REGIMEX_SECRET_KEY must be set to a secure random value in production. "
-                "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
         return value
 

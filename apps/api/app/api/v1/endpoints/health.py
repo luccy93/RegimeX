@@ -14,7 +14,7 @@ Architecture note:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -70,7 +70,7 @@ async def liveness() -> LivenessResponse:
     settings = get_settings()
     return LivenessResponse(
         status="ok",
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+        timestamp=datetime.now(tz=UTC).isoformat(),
         service=settings.app_name,
         version=settings.app_version,
     )
@@ -97,7 +97,7 @@ async def readiness() -> ReadinessResponse:
     """
     return ReadinessResponse(
         status="ready",
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+        timestamp=datetime.now(tz=UTC).isoformat(),
         checks={
             "api": "ok",
             # "database": "pending_v05",  # uncomment in V05

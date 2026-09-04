@@ -2,8 +2,9 @@
 
 **RegimeX — Open-Source Market Intelligence Platform**  
 **Volume:** V04 — Monorepo Engineering Foundation  
-**Commit:** `chore(monorepo): establish application and package structure`  
-**Status:** ✅ Commit 01 Complete
+**Commit 01:** `chore(monorepo): establish application and package structure`  
+**Commit 02:** `chore(tooling): configure development quality gates`  
+**Status:** ✅ Volume V04 Complete
 
 ---
 
@@ -71,6 +72,7 @@ RegimeX/
 │       ├── package.json
 │       ├── tsconfig.json                   ← Strict TypeScript config + path aliases
 │       ├── next.config.ts                  ← Next.js configuration
+│       ├── .eslintrc.json                  ← Next.js ESLint configuration
 │       └── .env.example                    ← Frontend env variables
 │
 ├── packages/                      ← Shared packages (no runtime app code)
@@ -85,9 +87,12 @@ RegimeX/
 │
 ├── docs/
 │   └── V04/
+│       ├── ARCHITECTURE_GUARDRAILS.md
 │       └── README.md               ← This file
 │
-├── scripts/                       ← Operational scripts
+├── scripts/                       ← Operational and quality-gate scripts
+│   ├── quality-check.sh            ← Bash quality-gate script (Linux/macOS/Git Bash)
+│   └── quality-check.ps1           ← PowerShell quality-gate script (Windows)
 │
 ├── infra/                         ← Infrastructure configuration
 │   ├── docker-compose.yml          ← Local development topology
@@ -96,7 +101,11 @@ RegimeX/
 │       └── web.Dockerfile          ← Multi-stage Next.js image
 │
 ├── .github/
-│   └── CODEOWNERS                  ← Review ownership assignments
+│   ├── CODEOWNERS                  ← Review ownership assignments
+│   └── PULL_REQUEST_TEMPLATE.md    ← PR checklist and guardrails
+│
+├── .pre-commit-config.yaml         ← Fast repository hygiene hooks
+├── Makefile                        ← Cross-platform developer quality commands
 │
 ├── V01/                           ← Product Foundation (documentation)
 ├── V02/                           ← Enterprise Requirements (documentation)
@@ -283,3 +292,80 @@ pytest tests/ -v
 ## Architectural Guardrails
 
 See [`ARCHITECTURE_GUARDRAILS.md`](ARCHITECTURE_GUARDRAILS.md) for the full set of rules preventing architectural drift.
+
+---
+
+## Development Quality Gates
+
+RegimeX enforces a three-tier quality-gate system designed to catch defects as early as possible in the development lifecycle:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Local Hygiene (Pre-commit)                               │
+│    Trailing whitespace, EOF, YAML/TOML, Gitleaks, Ruff fmt  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Developer Quality Gate (Local CLI / Make / Script)       │
+│    Ruff lint, mypy strict, pytest, ESLint, tsc, Next build  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Pull Request Review & CI (V25)                           │
+│    Enforced PR checklist, CODEOWNERS review, CI pipeline    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quality Command Matrix
+
+| Quality Gate | Scope | Command | Purpose |
+|--------------|-------|---------|---------|
+| **Backend Lint** | `apps/api/` | `ruff check app/ tests/` | PEP 8, import sorting, security & bug rules |
+| **Backend Format Check** | `apps/api/` | `ruff format --check app/ tests/` | Style conformity check (no file edits) |
+| **Backend Format Apply** | `apps/api/` | `ruff format app/ tests/` | Auto-format backend Python source files |
+| **Backend Type Check** | `apps/api/` | `mypy app/` | Strict static type checking (no untyped defs) |
+| **Backend Tests** | `apps/api/` | `python -m pytest tests/ -v` | Unit tests & module boundary verification |
+| **Frontend Lint** | `apps/web/` | `npm run lint` | Next.js Core Web Vitals & ESLint rules |
+| **Frontend Type Check** | `apps/web/` | `npm run type-check` | `tsc --noEmit` strict TypeScript check |
+| **Frontend Build** | `apps/web/` | `npm run build` | Next.js production build validation |
+| **Full Quality Gate (Make)** | Root | `make quality` | All lint, format, typecheck, and unit tests |
+| **Full Quality Gate (Bash)** | Root | `bash scripts/quality-check.sh` | Cross-platform Bash quality runner |
+| **Full Quality Gate (Win)** | Root | `powershell scripts/quality-check.ps1` | Native Windows PowerShell quality runner |
+
+### Pre-commit Hooks
+
+Pre-commit hooks execute lightweight checks locally before code is committed:
+
+```bash
+# 1. Install pre-commit (one-time setup)
+pip install pre-commit
+
+# 2. Install Git hook scripts
+pre-commit install
+
+# 3. Run against all files manually
+pre-commit run --all-files
+```
+
+Configured hooks in `.pre-commit-config.yaml`:
+- **Repository hygiene**: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-json`, `check-merge-conflict`, `check-added-large-files`.
+- **Secret detection**: `gitleaks` (detects accidental API keys, tokens, credentials).
+- **Python quality**: `ruff-format` and `ruff` linting across `apps/api/`.
+- **Frontend quality**: `frontend-type-check` (`tsc --noEmit`) across `apps/web/`.
+
+### Contributor Expectations
+
+1. **Clean Quality Gates**: Pull requests must pass all local quality checks prior to submission.
+2. **PR Template Checklist**: Every PR must complete the checklist in [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md).
+3. **No Secrets or Environment Files**: `.env` and secret credentials must never be committed.
+4. **Architectural Guardrails**: Changes must adhere to the modular monolith boundaries and dependency directions documented in [`ARCHITECTURE_GUARDRAILS.md`](ARCHITECTURE_GUARDRAILS.md).
+
+### Troubleshooting Setup Issues
+
+- **Python Virtual Environment**: Ensure your virtual environment is active before running commands (`.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on Linux/macOS).
+- **Mypy Cache Issues**: If mypy reports stale errors, clear cache with `rm -rf apps/api/.mypy_cache` or `make clean`.
+- **Ruff Cache Issues**: If ruff reports unexpected results, clear cache with `rm -rf apps/api/.ruff_cache`.
+- **Frontend Dependencies**: If Next.js or TypeScript fails to resolve packages, run `cd apps/web && npm install`.
+- **Pre-commit Failures**: When a hook modifies files (e.g. whitespace or ruff formatting), re-stage the modified files (`git add <files>`) and run `git commit` again.

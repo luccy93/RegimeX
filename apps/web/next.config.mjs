@@ -1,5 +1,3 @@
-import type { NextConfig } from "next";
-
 /**
  * RegimeX Web — Next.js Configuration
  *
@@ -8,8 +6,10 @@ import type { NextConfig } from "next";
  *   - The web application never accesses the database directly.
  *   - Environment variables prefixed with NEXT_PUBLIC_ are exposed to the browser.
  *   - Server-only secrets must NOT use NEXT_PUBLIC_ prefix.
+ *
+ * @type {import('next').NextConfig}
  */
-const nextConfig: NextConfig = {
+const nextConfig = {
   // Enable React strict mode for catching potential issues early
   reactStrictMode: true,
 

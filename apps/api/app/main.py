@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import v1_router
@@ -124,7 +124,9 @@ def create_app() -> FastAPI:
 
     # Request ID middleware — attach a unique ID to every request for tracing
     @app.middleware("http")
-    async def attach_request_id(request: Request, call_next):  # type: ignore[type-arg]
+    async def attach_request_id(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
         response = await call_next(request)

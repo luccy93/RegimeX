@@ -22,7 +22,9 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("REGIMEX_ENV", "test")
 os.environ.setdefault("REGIMEX_DEBUG", "false")
 os.environ.setdefault("REGIMEX_SECRET_KEY", "test-secret-key-not-for-production-use")
-os.environ.setdefault("REGIMEX_DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/regimex_test")
+os.environ.setdefault(
+    "REGIMEX_DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/regimex_test"
+)
 os.environ.setdefault("REGIMEX_REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("REGIMEX_LOG_LEVEL", "WARNING")
 os.environ.setdefault("REGIMEX_LOG_FORMAT", "text")

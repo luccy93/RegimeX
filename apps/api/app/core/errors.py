@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import traceback
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI, Request, status
@@ -119,7 +119,7 @@ def _error_envelope(
         "data": None,
         "meta": {
             "request_id": request_id or str(uuid.uuid4()),
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
         },
         "error": {
             "code": error_code,
@@ -226,4 +226,4 @@ def register_error_handlers(app: FastAPI) -> None:
     """
     app.add_exception_handler(RegimeXError, regimex_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
-    app.add_exception_handler(Exception, unhandled_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(Exception, unhandled_exception_handler)

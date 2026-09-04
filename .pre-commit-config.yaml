@@ -1,0 +1,75 @@
+# =============================================================================
+# RegimeX — Pre-commit Configuration
+# =============================================================================
+#
+# Fast repository hygiene checks run before each commit.
+# Purpose: catch trivial issues locally before they reach CI.
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run manually against all files:
+#   pre-commit run --all-files
+#
+# Update hook versions:
+#   pre-commit autoupdate
+#
+# Design principle:
+#   Pre-commit runs FAST checks only. Full test suites, type checks, and
+#   production builds are not run here — use `make quality` for those.
+# =============================================================================
+
+repos:
+  # ---------------------------------------------------------------------------
+  # General repository hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]  # allow custom YAML tags in docker-compose
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: mixed-line-ending
+        args: [--fix=lf]   # enforce LF line endings (.editorconfig rule)
+
+  # ---------------------------------------------------------------------------
+  # Security: detect accidentally committed secrets
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.27.2
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
+  # Python: Ruff (format + lint)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      # Format first, then lint (so lint sees formatted code)
+      - id: ruff-format
+        files: ^apps/api/
+      - id: ruff
+        files: ^apps/api/
+        args: [--fix]
+
+  # ---------------------------------------------------------------------------
+  # Frontend: type and lint (lightweight — skips build)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: frontend-type-check
+        name: TypeScript type check (frontend)
+        language: node
+        entry: sh -c 'cd apps/web && node_modules/.bin/tsc --noEmit'
+        pass_filenames: false
+        files: ^apps/web/.*\.(ts|tsx)$
+        types_or: [ts, tsx]

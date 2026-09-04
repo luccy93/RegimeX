@@ -23,9 +23,8 @@ class TestApplicationStartup:
 
     def test_app_can_be_created(self) -> None:
         """Application factory must produce a valid FastAPI instance."""
-        from fastapi import FastAPI
-
         from app.main import create_app
+        from fastapi import FastAPI
 
         app = create_app()
         assert isinstance(app, FastAPI)
