@@ -1,0 +1,150 @@
+# =============================================================================
+# RegimeX — Local Development Infrastructure
+# docker-compose.yml
+# =============================================================================
+#
+# Provides the complete local development topology for RegimeX.
+# This file is intended for local development only.
+#
+# Usage:
+#   Start all services:  docker compose up -d
+#   Stop all services:   docker compose down
+#   View logs:           docker compose logs -f
+#   Reset all data:      docker compose down -v  (DESTROYS all volumes)
+#
+# Architecture note (V03/ARCHITECTURE.md):
+#   - All internal services communicate on the regimex_net private network.
+#   - Database and Redis are NOT exposed to the public internet.
+#   - The API and web app ports are exposed to localhost only.
+#
+# V04 scope: Infrastructure skeleton only.
+# Full service wiring (environment variables, volumes, healthchecks)
+# will be completed in V05 when the database and Redis are integrated.
+# =============================================================================
+
+name: regimex
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + TimescaleDB
+  # Primary time-series and relational data store.
+  # Wired in V05 — Market Data Engine.
+  # ---------------------------------------------------------------------------
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: regimex-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: regimex_dev
+      POSTGRES_USER: regimex
+      # IMPORTANT: Set a real password via .env file or environment injection.
+      # Never commit real passwords to version control.
+      POSTGRES_PASSWORD: ${REGIMEX_DB_PASSWORD:-changeme_dev_only}
+    ports:
+      # Expose only to localhost — never bind to 0.0.0.0 in production
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - regimex_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U regimex -d regimex_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Redis 7
+  # In-memory cache, Celery message broker, and rate limiting.
+  # Wired in V05 — Market Data Engine.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: regimex-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - regimex_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # RegimeX API (FastAPI)
+  # V04: Skeleton only — image build enabled in V05.
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: regimex-api
+    restart: unless-stopped
+    env_file:
+      - ../apps/api/.env
+    environment:
+      REGIMEX_ENV: development
+      REGIMEX_DATABASE_URL: postgresql+asyncpg://regimex:${REGIMEX_DB_PASSWORD:-changeme_dev_only}@db:5432/regimex_dev
+      REGIMEX_REDIS_URL: redis://redis:6379/0
+      REGIMEX_CELERY_BROKER_URL: redis://redis:6379/1
+      REGIMEX_CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - regimex_net
+    profiles:
+      # API container is in the 'app' profile — not started by default in V04
+      # until database migrations are ready in V05.
+      # Start with: docker compose --profile app up
+      - app
+
+  # ---------------------------------------------------------------------------
+  # RegimeX Web (Next.js)
+  # V04: Skeleton only — image build enabled in V16 (Platform Volume).
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: regimex-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8000
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    networks:
+      - regimex_net
+    profiles:
+      - app
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  regimex_net:
+    driver: bridge
+    name: regimex_net
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

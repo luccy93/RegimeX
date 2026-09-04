@@ -1,0 +1,144 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "regimex-api"
+version = "0.1.0"
+description = "RegimeX Open-Source Market Intelligence Platform — FastAPI Backend"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "TBD — see V02/NONFUNCTIONAL_REQUIREMENTS.md OQ-010" }
+keywords = ["market-intelligence", "regime-detection", "quantitative-finance", "fastapi"]
+
+[project.urls]
+Repository = "https://github.com/luccy93/RegimeX"
+
+# =============================================================================
+# Runtime dependencies
+# =============================================================================
+[project.dependencies]
+# Core web framework
+fastapi = ">=0.111.0,<1.0.0"
+uvicorn = { version = ">=0.29.0,<1.0.0", extras = ["standard"] }
+
+# Configuration
+pydantic = ">=2.7.0,<3.0.0"
+pydantic-settings = ">=2.2.0,<3.0.0"
+
+# HTTP utilities
+httpx = ">=0.27.0,<1.0.0"
+
+# Async support
+anyio = ">=4.3.0,<5.0.0"
+
+# =============================================================================
+# Optional dependencies — installed in their respective volumes
+# =============================================================================
+[project.optional-dependencies]
+
+# V05 — Market Data Engine
+database = [
+    "sqlalchemy[asyncio]>=2.0.30,<3.0.0",
+    "asyncpg>=0.29.0,<1.0.0",
+    "alembic>=1.13.0,<2.0.0",
+]
+
+# V05 — Redis / Celery
+workers = [
+    "celery[redis]>=5.4.0,<6.0.0",
+    "redis>=5.0.0,<6.0.0",
+]
+
+# V07–V10 — Analytics & ML
+analytics = [
+    "numpy>=1.26.0,<3.0.0",
+    "pandas>=2.2.0,<3.0.0",
+    "scikit-learn>=1.4.0,<2.0.0",
+    "scipy>=1.13.0,<2.0.0",
+    "statsmodels>=0.14.0,<1.0.0",
+]
+
+# V08 — Regime Detection
+ml = [
+    "hmmlearn>=0.3.2,<1.0.0",
+]
+
+# Observability
+observability = [
+    "structlog>=24.1.0,<25.0.0",
+    "prometheus-client>=0.20.0,<1.0.0",
+]
+
+# Development tooling
+dev = [
+    "pytest>=8.2.0,<9.0.0",
+    "pytest-asyncio>=0.23.0,<1.0.0",
+    "pytest-cov>=5.0.0,<6.0.0",
+    "httpx>=0.27.0,<1.0.0",
+    "ruff>=0.4.0,<1.0.0",
+    "mypy>=1.10.0,<2.0.0",
+]
+
+# =============================================================================
+# Tool configuration
+# =============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-v",
+]
+markers = [
+    "unit: Pure unit tests — no external dependencies",
+    "integration: Tests requiring real infrastructure (database, Redis)",
+    "e2e: End-to-end tests against a running application",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit (security)
+    "N",    # pep8-naming
+]
+ignore = [
+    "ANN101", # missing type annotation for 'self' in method
+    "ANN102", # missing type annotation for 'cls' in classmethod
+    "S101",   # use of assert (acceptable in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ANN"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_reexport = true
+ignore_missing_imports = false
+plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "**/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
