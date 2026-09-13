@@ -12,8 +12,6 @@ Pandas Boundary:
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pandas as pd
 
 from app.modules.market_data.domain.errors import ProviderDataError
