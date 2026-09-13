@@ -31,20 +31,24 @@ Future Regime Detection (V08)
 | Commit | Scope | Status | Official Commit Message |
 | :--- | :--- | :---: | :--- |
 | **Commit 01** | **Market Feature Engineering Pipeline** | **COMPLETE** | `feat(features): implement market feature pipeline` |
-| **Commit 02** | **Feature Persistence & Pipeline Integration** | Awaiting Spec | `TBD` |
+| **Commit 02** | **Feature Validation & Leakage Test Hardening** | **COMPLETE** | `test(features): add feature validation and leakage tests` |
 
 ---
 
-## 3. Commit 01 Implementation Summary
+## 3. Volume 07 Status: 100% COMPLETE
 
-### What Commit 01 Established:
-* **Layered Clean Architecture:**
-  - `domain/`: Pure Python models (`FeatureCategory`, `MissingValuePolicy`, `FeatureRecord`, `FeatureInputData`, `FeatureDefinition`, `FeatureSet`) and abstract interface `FeatureCalculator`.
-  - `infrastructure/calculators/`: 17 vectorized NumPy calculators across 6 categories (Return, Volatility, Momentum, Trend, Volume, Range).
-  - `application/`: `FeaturePipelineConfig`, `FeatureRegistry`, `FeaturePipeline`, and `FeatureService`.
-* **Zero Look-Ahead Bias:** Verified by automated regression tests guaranteeing that feature values at observation timestamp $t$ depend exclusively on historical data $\le t$.
-* **Missing Value & Numerical Safety:** Clear handling of warm-up periods via `MissingValuePolicy` (`PRESERVE` vs `DROP_WARMUP`), zero division guards, and infinity/NaN sanitization.
-* **Test Suite:** 66 unit and architecture tests in `apps/api/tests/unit/feature_engineering/`. Total backend test count: 330 passed.
+### Summary of Completed Milestones:
+* **Commit 01 (`30e5998`):**
+  - Canonical domain models (`FeatureCategory`, `MissingValuePolicy`, `FeatureRecord`, `FeatureInputData`, `FeatureDefinition`, `FeatureSet`) and pure domain `FeatureCalculator` contract.
+  - 17 baseline feature calculators across 6 categories (Return, Volatility, Momentum, Trend, Volume, Range).
+  - Centralized configuration (`FeaturePipelineConfig`) and discovery registry (`FeatureRegistry`).
+  - Pipeline orchestrator (`FeaturePipeline`) and service facade (`FeatureService`).
+* **Commit 02:**
+  - Deep validation and golden numerical verification for all 17 features against hand-calculated benchmarks.
+  - Property-based invariant verification: price scale invariance for ratios ($c \cdot P$), non-negativity guarantees ($\sigma \ge 0, HL \ge 0, TR \ge 0$), and constant-series responses.
+  - Exhaustive anti-leakage test hardening (Tests A through F), including static Python AST audits prohibiting `center=True`, `bfill`, `backfill`, and global forward normalization.
+  - Malformed input and edge-case validation (empty/single-row inputs, duplicate/inverted timestamps, naive datetimes, missing volume feed preservation).
+  - 99 total feature engineering unit tests; 363 total backend unit tests passing.
 
 ---
 

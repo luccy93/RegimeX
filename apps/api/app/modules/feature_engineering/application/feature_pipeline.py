@@ -111,8 +111,11 @@ class FeaturePipeline:
         # 3. Resolve enabled calculators
         calculators: list[FeatureCalculator] = []
         if self._config.enabled_features is not None:
+            seen: set[str] = set()
             for feat_name in self._config.enabled_features:
-                calculators.append(self._registry.get(feat_name))
+                if feat_name not in seen:
+                    seen.add(feat_name)
+                    calculators.append(self._registry.get(feat_name))
         else:
             for feat_def in self._registry.list():
                 calculators.append(self._registry.get(feat_def.name))

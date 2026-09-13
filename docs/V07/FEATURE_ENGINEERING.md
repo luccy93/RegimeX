@@ -34,7 +34,7 @@ The **Feature Engineering Layer** (`app.modules.feature_engineering`) bridges va
 
 ## 2. Layered Architecture & Module Layout
 
-Following the hexagonal/clean architecture established in V03 and V04, the module is organized into strict layers:
+Following the clean hexagonal architecture established in V03 and V04, the module is organized into strict layers:
 
 ```text
 apps/api/app/modules/feature_engineering/
@@ -86,7 +86,7 @@ Under no circumstances may $F_t$ depend on $P_{> t}$.
 1. **Strictly Backward Rolling Windows:** Rolling statistics (e.g. `volatility_20`, `sma_ratio_10`, `volume_ratio_20`) use windows of the form $[t - W + 1, t]$. Centered windows (`center=True`) are strictly forbidden.
 2. **Recursive Point-in-Time Filters:** Recursive filters such as exponential moving averages (`ema_ratio_20`) update state sequentially from $t=0$ to $t=N$ with no backward pass.
 3. **No Future Fills:** Backward-fill operations (`bfill`) and full-dataset global scaling (which leaks future min/max or mean) are completely prohibited.
-4. **Automated Regression Test Suite:** Verified via `tests/unit/feature_engineering/test_no_lookahead.py`:
+4. **Automated Regression Test Suite:** Verified via `tests/unit/feature_engineering/test_no_lookahead.py` and `test_leakage_hardening.py`:
    - Mutating observations at $t+1 \dots N$ results in exactly $0.0$ difference for all feature values at $\le t$.
    - Slicing data into prefixes $[0 \dots k]$ matches the first $k$ rows of the full dataset computation bit-for-bit.
 
@@ -233,3 +233,16 @@ To introduce a new quantitative feature:
    registry.register(MyCustomIndicator(14))
    ```
 No modifications to the pipeline orchestrator or domain models are required.
+
+---
+
+## 8. Validation & Anti-Leakage Test Hardening Matrix (V07 Commit 02)
+
+Volume 07 Commit 02 established rigorous mathematical and programmatic guarantees across four specialized test modules:
+
+| Test Module | Coverage & Guarantees Verified |
+| :--- | :--- |
+| **`test_golden_numerical.py`** | Exact hand-calculated checks for all 17 features: positive/negative/zero return offsets, sample variance $ddof=1$, recursive EMA formula step-by-step, gap up/down True Range. |
+| **`test_property_invariants.py`** | Price scale invariance ($c \cdot P$ preserves return, momentum, SMA/EMA ratios, and normalized ranges), non-negativity ($\sigma \ge 0$, $HL \ge 0$, $TR \ge 0$), and constant series identity returns. |
+| **`test_leakage_hardening.py`** | Tests A through F: future mutation invariance ($t+1 \dots N$), prefix slice invariance ($0 \dots k$), individual per-calculator isolation, directional rolling check, and AST audits prohibiting `center=True`, `bfill`, and dataset-wide scaling. |
+| **`test_input_validation_hardening.py`** | Edge-case and error rejection: empty datasets, single-row handling, duplicate and inverted timestamps, naive datetimes, missing volume non-fabrication, and config deduplication. |
