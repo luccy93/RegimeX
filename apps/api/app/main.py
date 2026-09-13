@@ -66,6 +66,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
+    # V05 Commit 02: Register initial market data provider
+    from app.modules.market_data.application.registry import default_registry
+    from app.modules.market_data.infrastructure.providers.yahoo_finance import (
+        YahooFinanceProvider,
+    )
+
+    if not default_registry.is_registered("yahoo_finance"):
+        default_registry.register(YahooFinanceProvider())
+
     # V05+: await db_pool.initialize()
     # V05+: await redis_client.initialize()
 

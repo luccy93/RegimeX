@@ -32,6 +32,10 @@ httpx = ">=0.27.0,<1.0.0"
 # Async support
 anyio = ">=4.3.0,<5.0.0"
 
+# Initial Market Data Provider (V05 Commit 02)
+yfinance = ">=0.2.40,<1.0.0"
+pandas = ">=2.2.0,<3.0.0"
+
 # =============================================================================
 # Optional dependencies — installed in their respective volumes
 # =============================================================================
@@ -137,8 +141,8 @@ ignore_missing_imports = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-# fastapi internals — stubs are correct but some internals are untyped
-module = ["fastapi.*"]
+# Third-party libraries without complete type stubs
+module = ["fastapi.*", "yfinance", "yfinance.*", "pandas", "pandas.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

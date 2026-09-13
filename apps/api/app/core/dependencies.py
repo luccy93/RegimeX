@@ -17,11 +17,15 @@ established. Stubs are documented below to communicate the intended pattern.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends
 
 from app.core.config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from app.modules.market_data.application.registry import ProviderRegistry
+    from app.modules.market_data.domain.provider import MarketDataProvider
 
 # =============================================================================
 # Settings Dependency
@@ -42,6 +46,35 @@ def settings_dep() -> Settings:
 
 # Type alias for annotated dependency injection
 SettingsDep = Annotated[Settings, Depends(settings_dep)]
+
+
+# =============================================================================
+# Market Data Dependencies (V05 Commit 02)
+# =============================================================================
+
+
+def market_data_registry_dep() -> ProviderRegistry:
+    """Provide the market data provider registry."""
+    from app.modules.market_data.application.registry import default_registry
+
+    return default_registry
+
+
+MarketDataRegistryDep = Annotated[ProviderRegistry, Depends(market_data_registry_dep)]
+
+
+def market_data_provider_dep(
+    registry: MarketDataRegistryDep,
+) -> MarketDataProvider:
+    """
+    Provide the default market data provider abstraction.
+
+    The application layer depends on MarketDataProvider, not concrete adapters.
+    """
+    return registry.get("yahoo_finance")
+
+
+MarketDataProviderDep = Annotated[MarketDataProvider, Depends(market_data_provider_dep)]
 
 
 # =============================================================================
