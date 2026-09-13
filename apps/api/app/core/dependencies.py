@@ -17,15 +17,18 @@ established. Stubs are documented below to communicate the intended pattern.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 
 if TYPE_CHECKING:
     from app.modules.market_data.application.registry import ProviderRegistry
     from app.modules.market_data.domain.provider import MarketDataProvider
+    from app.modules.market_data.domain.repository import MarketDataRepository
 
 # =============================================================================
 # Settings Dependency
@@ -78,25 +81,41 @@ MarketDataProviderDep = Annotated[MarketDataProvider, Depends(market_data_provid
 
 
 # =============================================================================
+# Database Session & Repository Dependencies (V06 Commit 02)
+# =============================================================================
+
+
+async def db_session_dep() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async SQLAlchemy session with transaction management."""
+    from app.core.database import get_db_session
+
+    async for session in get_db_session():
+        yield session
+
+
+DatabaseSessionDep = Annotated[AsyncSession, Depends(db_session_dep)]
+
+
+def market_data_repository_dep(
+    session: DatabaseSessionDep,
+) -> MarketDataRepository:
+    """Provide the market data repository abstraction backed by SQLAlchemy."""
+    from app.modules.market_data.infrastructure.persistence import (
+        SQLAlchemyMarketDataRepository,
+    )
+
+    return SQLAlchemyMarketDataRepository(session)
+
+
+MarketDataRepositoryDep = Annotated[MarketDataRepository, Depends(market_data_repository_dep)]
+
+
+# =============================================================================
 # Future Dependency Stubs
 # =============================================================================
 # The following stubs document the intended dependency pattern for resources
 # that will be implemented in later volumes. They are intentionally not
-# implemented here to respect V04 scope boundaries.
-
-# DATABASE SESSION (V05 — Market Data Engine)
-# ------------------------------------------
-# async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-#     """Provide an async SQLAlchemy database session per request."""
-#     async with async_session_factory() as session:
-#         try:
-#             yield session
-#             await session.commit()
-#         except Exception:
-#             await session.rollback()
-#             raise
-#
-# DatabaseSession = Annotated[AsyncSession, Depends(get_db_session)]
+# implemented here to respect volume scope boundaries.
 
 # REDIS CLIENT (V05 — Market Data Engine)
 # ----------------------------------------

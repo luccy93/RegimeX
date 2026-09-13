@@ -175,3 +175,44 @@ class ProviderSymbolNotFoundError(ProviderError):
     def __str__(self) -> str:
         prefix = f"[provider={self.provider_id}] " if self.provider_id else ""
         return f"{prefix}Symbol not found: {self.symbol!r} — {self.message}"
+
+
+# =============================================================================
+# Storage / Persistence Exception Hierarchy
+# =============================================================================
+
+
+class StorageError(RegimeXError):
+    """
+    Base exception for all market data persistence and repository errors.
+
+    Translates lower-level SQLAlchemy, database, or connection failures into
+    clean platform errors without leaking credentials or raw SQL strings.
+    """
+
+    error_code = "STORAGE_ERROR"
+
+    def __init__(
+        self,
+        message: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+
+
+class StorageConnectionError(StorageError):
+    """Database connectivity failure or pool exhaustion."""
+
+    error_code = "STORAGE_CONNECTION_ERROR"
+
+
+class StorageIntegrityError(StorageError):
+    """Database constraint or data integrity violation."""
+
+    error_code = "STORAGE_INTEGRITY_ERROR"
+
+
+class StorageNotFoundError(StorageError):
+    """Requested record was not found in the persistence store."""
+
+    error_code = "STORAGE_NOT_FOUND"

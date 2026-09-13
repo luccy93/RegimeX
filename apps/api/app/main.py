@@ -80,7 +80,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield  # Application is running
 
-    # V05+: await db_pool.close()
+    # Dispose database engine pool cleanly
+    from app.core.database import dispose_engine
+
+    await dispose_engine()
+
     # V05+: await redis_client.close()
 
     logger.info("RegimeX API shut down cleanly")

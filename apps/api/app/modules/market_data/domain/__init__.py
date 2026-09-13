@@ -16,6 +16,10 @@ from app.modules.market_data.domain.errors import (
     ProviderRateLimitError,
     ProviderSymbolNotFoundError,
     ProviderUnavailableError,
+    StorageConnectionError,
+    StorageError,
+    StorageIntegrityError,
+    StorageNotFoundError,
 )
 from app.modules.market_data.domain.models import (
     AdjustmentPolicy,
@@ -31,6 +35,7 @@ from app.modules.market_data.domain.provider import (
     ProviderCapabilities,
     ProviderMetadata,
 )
+from app.modules.market_data.domain.repository import MarketDataRepository
 
 __all__ = [
     # Enums
@@ -46,6 +51,8 @@ __all__ = [
     "MarketDataProvider",
     "ProviderCapabilities",
     "ProviderMetadata",
+    # Repository interface
+    "MarketDataRepository",
     # Errors
     "ProviderError",
     "ProviderConfigurationError",
@@ -54,4 +61,8 @@ __all__ = [
     "ProviderAuthenticationError",
     "ProviderDataError",
     "ProviderSymbolNotFoundError",
+    "StorageError",
+    "StorageConnectionError",
+    "StorageIntegrityError",
+    "StorageNotFoundError",
 ]
