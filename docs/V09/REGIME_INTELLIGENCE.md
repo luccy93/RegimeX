@@ -149,14 +149,16 @@ where $R_{t-1} \neq k$ and $R_{t+L} \neq k$. The run duration is $L$.
 ### 4.3 Feature Descriptive Statistics
 For each feature $X$ within regime $k$:
 - **Observation Count:** Valid, non-null observations ($N_{k, X}$).
-- **Arithmetic Mean:** $\bar{X} = \frac{1}{N_{k, X}} \sum_{i=1}^{N_{k, X}} X_i$.
-- **Median:** 50th percentile of valid observations.
+- **Arithmetic Mean:** $\bar{X} = \frac{1}{N_{k, X}} \sum_{i=1}^{N_{k, X}} X_i$, or `None` if $N_{k, X} = 0$.
+- **Median:** 50th percentile of valid observations, or `None` if $N_{k, X} = 0$.
 - **Sample Standard Deviation:** Computed using Bessel's correction ($ddof=1$):
   $$s = \sqrt{\frac{1}{N_{k, X} - 1} \sum_{i=1}^{N_{k, X}} (X_i - \bar{X})^2}$$
-  - When $N_{k, X} = 1$ or all values are identical: $s = 0.0$.
-  - When $N_{k, X} = 0$: represented as `None`.
-- **Min / Max:** Extreme observed values.
-- **No Data Fabrication:** Missing values (`None`) are never replaced with zero (`fillna(0)`).
+  - When $N_{k, X} \ge 2$ and all values are identical: $s = 0.0$.
+  - When $N_{k, X} < 2$: represented as `None` (standard deviation is mathematically unavailable and never manufactured as zero).
+- **Min / Max:** Extreme observed values, or `None` if $N_{k, X} = 0$.
+
+> **Missing and Non-Finite Value Policy:**  
+> Missing and non-finite feature values are never replaced with zero. Statistics are computed only from valid finite observations. When insufficient valid observations exist for a statistic, the statistic is represented as unavailable rather than fabricated.
 
 ---
 

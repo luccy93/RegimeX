@@ -47,7 +47,7 @@ V09 Regime Intelligence Layer
   - Domain error hierarchy: `RegimeIntelligenceError`, `InvalidRegimeAssignmentError`, `InvalidRegimeHistoryError`, `InsufficientRegimeDataError`, `UnsupportedRankingMetricError`, `InvalidFeatureStatisticsError`.
   - Zero dependencies on `pandas`, `numpy`, or `scikit-learn`.
 - **Infrastructure Layer (`infrastructure/analytics/`):**
-  - `FeatureStatisticsCalculatorImpl`: Numerically safe descriptive statistics (mean, median, sample std $ddof=1$, min, max) with explicit missing value preservation (zero `fillna(0)`).
+  - `FeatureStatisticsCalculatorImpl`: Numerically safe descriptive statistics (mean, median, sample std $ddof=1$, min, max). Missing and non-finite feature values are never replaced with zero. Statistics are computed only from valid finite observations. When insufficient valid observations exist for a statistic, the statistic is represented as unavailable rather than fabricated.
   - `DurationAnalyzerImpl`: Chronological run-length encoding computing run counts, mean, median, min, max durations, and active trailing run lengths in discrete observation units (`duration_observations`).
   - `RegimeProfiler`: Profile construction engine enforcing frequency normalization ($\sum f_k \approx 1.0$) and duration invariants ($\text{min} \le \text{median} \le \text{max}$).
 - **Application Layer (`application/service.py`):**

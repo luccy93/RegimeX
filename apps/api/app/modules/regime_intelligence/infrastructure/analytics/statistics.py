@@ -5,8 +5,10 @@ Numerically safe computation of descriptive feature statistics for market regime
 
 Guarantees:
 - Safe handling of empty datasets, single observations, constant features, and missing values.
-- Zero NaN, +inf, or -inf propagation (returns None or 0.0 where mathematically appropriate).
+- Missing and non-finite values are never replaced with zero (no zero-filling or imputation).
+- Zero NaN, +inf, or -inf propagation (returns None where mathematically unavailable).
 - Uses sample standard deviation (Bessel's correction, ddof=1) when sample size >= 2.
+- When valid sample count < 2, standard deviation is None (never manufactured as zero).
 """
 
 from __future__ import annotations
@@ -62,7 +64,7 @@ class FeatureStatisticsCalculatorImpl:
                 observation_count=1,
                 mean=val,
                 median=val,
-                std=0.0,
+                std=None,
                 min=val,
                 max=val,
             )

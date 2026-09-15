@@ -2,7 +2,7 @@
 Unit Tests — Descriptive Feature Statistics
 ============================================
 Validates hand-calculable statistics, sample vs population standard deviation convention,
-missing value handling (Dataset F), zero data fabrication, and numerical safety.
+missing value handling (Datasets A–F), zero data fabrication, and numerical safety.
 """
 
 from __future__ import annotations
@@ -44,13 +44,89 @@ class TestFeatureStatistics:
         expected_sample_std = math.sqrt(5.0 / 3.0)
         assert stat.std is not None and math.isclose(stat.std, expected_sample_std, abs_tol=1e-9)
 
+    def test_test_a_nan_exclusion(self) -> None:
+        """
+        Test A — NaN exclusion.
+        Input: [1.0, 2.0, NaN, 4.0]
+        Expected: count=3, mean=7/3, median=2.0, min=1.0, max=4.0
+        """
+        vals = [1.0, 2.0, float("nan"), 4.0]
+        stat = self.calc.compute("feature_x", vals)
+
+        assert stat.observation_count == 3
+        assert stat.mean is not None and math.isclose(stat.mean, 7.0 / 3.0, abs_tol=1e-9)
+        assert stat.median is not None and math.isclose(stat.median, 2.0, abs_tol=1e-9)
+        assert stat.min is not None and math.isclose(stat.min, 1.0, abs_tol=1e-9)
+        assert stat.max is not None and math.isclose(stat.max, 4.0, abs_tol=1e-9)
+        assert stat.std is not None and not math.isnan(stat.std)
+
+    def test_test_b_single_valid_observation(self) -> None:
+        """
+        Test B — Single valid observation.
+        Input: [5.0, NaN, NaN]
+        Expected: count=1, mean=5.0, median=5.0, std=None, min=5.0, max=5.0
+        """
+        vals = [5.0, float("nan"), float("nan")]
+        stat = self.calc.compute("single_valid", vals)
+
+        assert stat.observation_count == 1
+        assert stat.mean == 5.0
+        assert stat.median == 5.0
+        assert stat.std is None  # Standard deviation is unavailable when sample size < 2
+        assert stat.min == 5.0
+        assert stat.max == 5.0
+
+    def test_test_c_all_missing(self) -> None:
+        """
+        Test C — All missing values.
+        Input: [NaN, NaN, NaN]
+        Expected: count=0, mean=None, median=None, std=None, min=None, max=None
+        """
+        vals = [float("nan"), float("nan"), float("nan")]
+        stat = self.calc.compute("all_nan", vals)
+
+        assert stat.observation_count == 0
+        assert stat.mean is None
+        assert stat.median is None
+        assert stat.std is None
+        assert stat.min is None
+        assert stat.max is None
+
+    def test_test_d_non_finite_values(self) -> None:
+        """
+        Test D — Non-finite values.
+        Input: [1.0, 2.0, inf, -inf, NaN]
+        Expected: Invalid values excluded without being converted to zero.
+        count=2, mean=1.5, median=1.5, min=1.0, max=2.0
+        """
+        vals = [1.0, 2.0, float("inf"), float("-inf"), float("nan")]
+        stat = self.calc.compute("non_finite_feat", vals)
+
+        assert stat.observation_count == 2
+        assert stat.mean == 1.5
+        assert stat.median == 1.5
+        assert stat.min == 1.0
+        assert stat.max == 2.0
+
+    def test_test_e_no_artificial_observations(self) -> None:
+        """
+        Test E — No artificial observations.
+        Input: [10.0, NaN, 20.0]
+        Expected: count=2, not count=3.
+        """
+        vals = [10.0, float("nan"), 20.0]
+        stat = self.calc.compute("two_valid", vals)
+
+        assert stat.observation_count == 2
+        assert stat.mean == 15.0
+        assert stat.median == 15.0
+        assert stat.min == 10.0
+        assert stat.max == 20.0
+
     def test_dataset_f_missing_feature_values(self) -> None:
         """
         Dataset F: Missing values (None) must be excluded without zero-filling.
-
         Input: [1.0, None, 3.0].
-        If zero-filled: [1.0, 0.0, 3.0] -> mean would erroneously be 1.333.
-        Correct behavior: [1.0, 3.0] -> count = 2, mean = 2.0, min = 1.0, max = 3.0.
         """
         vals = [1.0, None, 3.0]
         stat = self.calc.compute("return_1", vals)
@@ -61,19 +137,8 @@ class TestFeatureStatistics:
         assert stat.min is not None and math.isclose(stat.min, 1.0, abs_tol=1e-9)
         assert stat.max is not None and math.isclose(stat.max, 3.0, abs_tol=1e-9)
 
-    def test_single_observation_safety(self) -> None:
-        """Single observation produces count=1, std=0.0."""
-        stat = self.calc.compute("volatility_20", [0.18])
-
-        assert stat.observation_count == 1
-        assert stat.mean == 0.18
-        assert stat.median == 0.18
-        assert stat.std == 0.0
-        assert stat.min == 0.18
-        assert stat.max == 0.18
-
     def test_constant_feature_zero_variance(self) -> None:
-        """Constant values produce zero variance and std == 0.0."""
+        """Constant values with count >= 2 produce zero variance and std == 0.0."""
         stat = self.calc.compute("constant_feat", [5.0, 5.0, 5.0, 5.0])
 
         assert stat.observation_count == 4
@@ -82,26 +147,3 @@ class TestFeatureStatistics:
         assert stat.std == 0.0
         assert stat.min == 5.0
         assert stat.max == 5.0
-
-    def test_empty_and_all_none_series(self) -> None:
-        """Empty series or all-None series return observation_count == 0 and None metrics."""
-        stat_empty = self.calc.compute("empty_feat", [])
-        assert stat_empty.observation_count == 0
-        assert stat_empty.mean is None
-        assert stat_empty.std is None
-
-        stat_none = self.calc.compute("none_feat", [None, None, None])
-        assert stat_none.observation_count == 0
-        assert stat_none.mean is None
-        assert stat_none.std is None
-
-    def test_nan_and_inf_filtering(self) -> None:
-        """NaN and infinite values are filtered out rather than corrupting statistics."""
-        vals = [2.0, float("nan"), float("inf"), float("-inf"), 4.0]
-        stat = self.calc.compute("robust_feat", vals)
-
-        assert stat.observation_count == 2
-        assert stat.mean == 3.0
-        assert stat.min == 2.0
-        assert stat.max == 4.0
-        assert stat.std is not None and not math.isnan(stat.std)

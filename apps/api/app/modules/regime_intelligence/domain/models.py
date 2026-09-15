@@ -50,8 +50,8 @@ class FeatureStatistic(BaseModel):
     std: float | None = Field(
         default=None,
         description=(
-            "Sample standard deviation (ddof=1) of feature values, 0.0 if count == 1 "
-            "or values identical, or None if observation_count == 0"
+            "Sample standard deviation (ddof=1) of valid feature values, 0.0 if values "
+            "identical, or None if observation_count < 2"
         ),
     )
     min: float | None = Field(
