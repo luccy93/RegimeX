@@ -150,13 +150,25 @@ In accordance with ADR-0005 and V03 Interface Specifications:
 
 ## 9. Verification & Test Suite Summary
 
-The baseline KMeans implementation is validated by 55 dedicated unit tests in `apps/api/tests/unit/regime_detection/`:
-- **Architecture Boundaries (`test_architecture.py`):** Asserts zero forbidden imports (`sklearn`, `pandas`, `numpy`, etc.) in domain layer, zero scikit-learn in application layer, and no premature ML libraries (`hmmlearn`, `xgboost`, `torch`).
+The baseline KMeans implementation is validated by 192 dedicated unit tests in `apps/api/tests/unit/regime_detection/`.
+
+### Commit 01 Foundation Tests (55 tests)
+
+- **Architecture Boundaries (`test_regime_architecture.py`):** Asserts zero forbidden imports (`sklearn`, `pandas`, `numpy`, etc.) in domain layer, zero scikit-learn in application layer, and no premature ML libraries (`hmmlearn`, `xgboost`, `torch`).
 - **Domain Models (`test_models.py`):** Asserts immutability, shape validation, naive timestamp rejection, and non-finite value rejection.
 - **Feature Matrix (`test_feature_matrix.py`):** Asserts warm-up row exclusion, zero-fabrication rejection, and timestamp alignment with V07 `FeatureSet`.
 - **KMeans Engine (`test_kmeans.py`):** Asserts lifecycle states, fit diagnostics, prediction bounds, row-sum probability invariants, and state replacement on refit.
 - **Cluster Canonicalization (`test_labeling.py`):** Proves 100% purity separation on synthetic market states and seed-invariant canonical regime mapping.
 - **Determinism (`test_determinism.py`):** Proves bit-for-bit reproducibility across independent instances and canonical column normalization.
-- **Sample Count Boundaries (`test_insufficient_data.py`):** Tests $N=0, 1, < K, = K$.
+- **Sample Count Boundaries (`test_insufficient_data.py`):** Tests $N=0, 1, \lt K, = K$.
 - **Anti-Leakage Hardening (`test_leakage_and_lookahead.py`):** Proves frozen scaler parameters during inference and point-in-time prefix prediction invariance.
 - **Service Integration (`test_service.py`):** End-to-end integration connecting raw synthetic bars $\to$ V07 `FeaturePipeline` (17 features) $\to$ `RegimeDetectionService` $\to$ canonical `RegimeDetectionResult`.
+
+### Commit 02 Validation & Hardening Tests (137 new tests)
+
+- **Golden KMeans Validation (`test_kmeans_validation.py`):** 4-cluster separable synthetic market dataset, fit-result diagnostic validation (inertia, iteration count, feature means, sample counts, timestamps, algorithm field, version stability), numerical safety (very large/small/constant/near-zero-variance features), predict output shape/range/determinism, `predict_proba()` contract (shape, finite values, row normalization, column alignment, heuristic disclosure in metadata), and performance regression (< 30s for 500 rows).
+- **Label Canonicalization Regression (`test_label_canonicalization.py`):** Direct lexicographic signature rule verification, secondary-feature tie-breaking using a 3-feature deterministic dataset with known exact centroids, multi-seed canonical stability (seeds 1/42/99 on 4-cluster golden dataset), stability when raw cluster numbering differs across seeds, and label format/ordering/completeness invariants.
+- **Scaler Leakage Regression (`test_scaler_leakage.py`):** Captured `mean_`/`scale_` before/after predict and predict_proba on extreme OOS data ($\pm$7777–12345), 10-pass multi-call mutation guard, transform-vs-fit_transform proof using divergence of training and OOS scalers, refit scaler replacement (orders-of-magnitude shift: $[0.02, 0.15] \to [999.5, 4995]$), no stale parameter accumulation (cross-validated against fresh `StandardScaler`), and determinism of scaler parameters across identical training runs.
+- **Model Lifecycle Hardening (`test_model_lifecycle.py`):** UNFITTED state on construction, typed `ModelNotFittedError` with model name in message, `fit()` self-return, 3× repeated prediction determinism, cross-instance determinism, refit sample count/timestamp/scaler/KMeans replacement, metadata completeness (algorithm_id, version, family, description, assumptions, limitations, hyperparameters, no credential exposure), and 11 configuration edge-case rejection tests.
+- **Feature Matrix Validation Hardening (`test_feature_matrix_validation.py`):** Domain model: single-row, empty, duplicate timestamps, out-of-order, naive timestamps, non-UTC timezone-aware accepted, duplicate feature names, whitespace-only feature name, row/column dimension mismatch, `get_column()` correctness and KeyError. Builder: alphabetical ordering, custom order preservation, deduplication, extra feature exclusion, missing feature typed error, empty string feature name typed error, warm-up None exclusion (not zero-filled), all-None typed error, and timestamp alignment. Feature ordering: inference on wrong order raises `InvalidFeatureMatrixError`, alphabetical normalization produces consistent cross-FeatureSet results.
+- **V07→V08 Integration Validation (`test_v07_v08_integration.py`):** Full pipeline (OHLCV → V07 → FeatureMatrix → KMeans → canonical result), feature subset selection through service, subsequent inference determinism, timestamp alignment through full stack, warm-up None exclusion, no-zero-fabrication, NaN-free matrix after builder, insufficient bars typed error propagation, scaler frozen during service inference, in-sample model limitation in metadata, point-in-time prefix invariance through service, service-interface abstraction, domain-only result types (no sklearn objects), algorithm version stability, and no-GMM/HMM/ensemble architecture guard.
