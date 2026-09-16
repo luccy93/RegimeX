@@ -2,7 +2,7 @@
 
 **Technical Specification & Architecture**  
 **Module:** `apps/api/app/modules/regime_intelligence/`  
-**Current Phase:** Volume 09 Commit 01 (`feat(regime): add regime intelligence layer`)
+**Current Phase:** Volume 09 Commit 02 (`test(regime): add regime intelligence validation suite`)
 
 ---
 
@@ -212,3 +212,38 @@ In accordance with Volume 09 Commit 01 scope guardrails, the following component
 - ❌ **Trading Signals:** No buy, sell, or hedge recommendations.
 - ❌ **Advanced Models:** Zero GMM, HMM, or ensemble model implementations.
 - ❌ **Public REST Endpoints:** API routes deferred to subsequent commits.
+
+---
+
+## 9. Validation Coverage & Regression Hardening
+
+Volume 09 Commit 02 introduces an exhaustive validation suite protecting all mathematical, architectural, and point-in-time guarantees:
+
+```text
+apps/api/tests/unit/regime_intelligence/
+├── test_models.py                              # 23 tests: Model invariants, immutability, bounds & serialization
+├── test_frequency.py                           # 9 tests: Empirical frequencies, normalisation & imbalance
+├── test_duration.py                            # 10 tests: Run-length encoding & duration invariants
+├── test_feature_statistics.py                  # 12 tests: Missingness policy, non-finite exclusion & ddof=1
+├── test_current_context.py                     # 8 tests: Trailing run context & point-in-time state
+├── test_ranking.py                             # 8 tests: Metric sorting & deterministic tie-breaking
+├── test_determinism.py                         # 4 tests: Multi-run JSON identity & ordering invariance
+├── test_validation.py                          # 4 tests: Strict UTC, duplicate & non-monotonic rejection
+├── test_regime_intelligence_architecture.py    # 6 tests: AST import isolation, scope guardrails & neutral labels
+├── test_v08_integration.py                     # 1 test: V08 detector to V09 intelligence integration
+├── test_v07_v08_v09_pipeline.py                # 1 test: Full end-to-end OHLCV -> Features -> KMeans -> Profiles
+├── test_lookahead.py                           # 2 tests: Anti-lookahead regression & prefix stability
+├── test_edge_cases.py                          # 4 tests: Extreme float values, long runs & mathematical invariants
+└── test_performance.py                         # 1 test: Linear O(N) duration processing & prompt execution
+```
+
+### Key Protected Invariants:
+1. **Frequency Normalisation:** $\sum_{k=0}^{K-1} f_k = 1.0 \pm 10^{-6}$ and $0.0 \le f_k \le 1.0$.
+2. **Observation Conservation:** $\sum_{k=0}^{K-1} N_k = N_{\text{total}}$.
+3. **Duration Ordering:** $\text{min} \le \text{median} \le \text{max}$ and $\text{min} \le \text{average} \le \text{max}$.
+4. **Current Run Validity:** $\text{observations\_in\_current\_run} \ge 1$.
+5. **Sample Standard Deviation ($ddof=1$):** Mathematically unavailable (`None`) for $N < 2$; never converted to $0.0$ unless observations are equal.
+6. **Zero Imputation Prohibition:** Missing feature observations remain unpolluted; no `fillna(0)` or artificial fallback.
+7. **Zero Lookahead:** Context and profile calculations through timestamp $T$ depend exclusively on historical data $\le T$.
+8. **Deterministic Tie-Breaking:** Ties broken strictly by `regime_id` ascending.
+

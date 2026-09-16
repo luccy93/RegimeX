@@ -35,7 +35,7 @@ V09 Regime Intelligence Layer
 | Commit | Scope | Status | Official Commit Message |
 | :--- | :--- | :---: | :--- |
 | **Commit 01** | **Regime Intelligence Layer** | **COMPLETE** | `feat(regime): add regime intelligence layer` |
-| **Commit 02** | **Regime Intelligence Validation Suite** | *Pending* | `test(regime): add regime intelligence validation suite` |
+| **Commit 02** | **Regime Intelligence Validation Suite** | **COMPLETE** | `test(regime): add regime intelligence validation suite` |
 
 ---
 
@@ -53,22 +53,42 @@ V09 Regime Intelligence Layer
 - **Application Layer (`application/service.py`):**
   - `RegimeIntelligenceService`: Application facade providing `build_profiles`, `summarize_history`, `get_current_context`, `rank_regimes`, and the `from_v08_result` integration adapter.
   - Strict validation: UTC timezone awareness, strictly increasing timestamps, duplicate timestamp rejection, and deterministic tie-breaking.
-- **Verification:**
-  - 55 dedicated unit and integration tests across models, frequency, duration, feature statistics, current context, ranking, determinism, input validation, and architectural boundaries.
-  - 610 total passed backend tests (0 failures).
 
 ---
 
-## 4. Architectural Guardrails (Scope Enforcement)
+## 4. Volume 09 Commit 02 Summary — Regime Intelligence Validation Suite
 
-The following components are strictly excluded from Volume 09 Commit 01:
-* ❌ No transition probability engine or Markov transition matrices (deferred).
+Volume 09 Commit 02 establishes the comprehensive regression and invariant validation suite protecting the Regime Intelligence Layer:
+
+- **Validation Suite Breakdown (93 unit & integration tests):**
+  - **Domain Model Hardening (23 tests):** Valid/invalid construction, immutability, timezone validation, negative metric rejection, frequency/percentage bounds, duration invariant failure modes, nullable statistics, and serialization/deserialization lossless round-trip.
+  - **Empirical Frequency Validation (9 tests):** Hand-verified Datasets A–E, extreme class imbalance (99 vs 1), balanced multi-regime allocations, large-count invariance (10,000 observations), and strict normalization $\sum f_k = 1.0 \pm 10^{-6}$.
+  - **Duration & Run-Length Encoding (10 tests):** Contiguous runs, first transition dynamics, alternating states, multiple non-contiguous runs of the same regime, discrete unit measurement, and $\text{min} \le \text{median} \le \text{max}$ invariants.
+  - **Feature Statistics & Missingness Policy (12 tests):** Exact hand-calculable fixtures, zero-imputation prohibition (no `fillna(0)`), single-observation sample std protection ($N=1 \implies \text{std}=\text{None}$), all-missing nullable stats, and non-finite value exclusion without pollution.
+  - **Active Trailing Regime Context (8 tests):** Point-in-time active regime extraction, trailing run lengths ($L \ge 1$), baseline metric comparison, and historical state isolation.
+  - **Deterministic Regime Ranking (8 tests):** Primary sort on frequency, duration, counts, and dynamic feature statistics; deterministic tie-breaking on `regime_id` ascending; typed error on unknown metrics.
+  - **Pure Determinism (4 tests):** Byte-for-byte JSON serialization identity over repeated runs, dictionary insertion order invariance, and ranking permutation invariance.
+  - **Temporal & Defensive Validation (4 tests):** UTC timezone enforcement, duplicate timestamp rejection, decreasing timestamp rejection, and valid timestamp sequences.
+  - **Architectural & Scope Enforcement (6 tests):** AST-level verification guaranteeing zero forbidden imports in domain (`pandas`, `numpy`, `sklearn`, `scipy`), zero ML trainer imports in application, zero zero-imputation patterns in statistics, zero future scope classes (`TransitionMatrix`, `MarkovChain`, `GMMRegimeDetector`, `HMMRegimeDetector`, `EnsembleRegimeDetector`, `VaR`, `BacktestEngine`, `TradingSignal`), and zero subjective economic labels (`bull`, `bear`, `crash`, `buy`, `sell`).
+  - **V08 Integration (1 test):** Verified end-to-end bridge from V08 `KMeansRegimeDetector` and `FeatureMatrix` into `RegimeIntelligenceService`.
+  - **Full Pipeline V07→V08→V09 (1 test):** Verified complete deterministic pipeline from raw `OHLCVRecord` bars through V07 `FeaturePipeline`, V08 `FeatureMatrixBuilder` and KMeans detector, to V09 `RegimeHistorySummary`.
+  - **Anti-Lookahead Regression (2 tests):** Verified that active context and historical profiles evaluated through time $T$ are strictly invariant to any future observations or alterations occurring after $T$.
+  - **Edge Cases & Numerical Bounds (4 tests):** Extreme floating-point values ($10^{-12}$ to $10^{12}$), long contiguous spells (2,000 observations), 10 distinct regimes, and complex irregular sequences.
+  - **Performance Regression (1 test):** Verified linear $O(N)$ duration processing and sub-second execution on 5,000-observation multi-feature series.
+
+---
+
+## 5. Architectural Guardrails (Scope Enforcement)
+
+The following components are strictly excluded from Volume 09:
+* ❌ No transition probability engine or Markov transition matrices (deferred to V12).
 * ❌ No forward-looking transition forecasting.
-* ❌ No Gaussian Mixture Models (GMM) or Hidden Markov Models (HMM).
-* ❌ No ensemble models or voting meta-classifiers.
-* ❌ No risk engine or Value-at-Risk (VaR) calculations.
-* ❌ No strategy backtesting or trade execution attribution.
-* ❌ No AI assistants or LLM prompt generation.
+* ❌ No Gaussian Mixture Models (GMM) or Hidden Markov Models (HMM) (deferred to V10).
+* ❌ No ensemble models or voting meta-classifiers (deferred to V11).
+* ❌ No risk engine or Value-at-Risk (VaR) calculations (deferred to V13).
+* ❌ No strategy backtesting or trade execution attribution (deferred to V14).
+* ❌ No AI assistants or LLM prompt generation (deferred to V21).
 * ❌ No trading signals, buy/sell recommendations, or investment advice.
 * ❌ No subjective or overclaiming economic labels ("bull", "bear", "crash").
 * ❌ No public REST API endpoints (deferred).
+

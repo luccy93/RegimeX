@@ -79,3 +79,25 @@ class TestInputValidation:
         ]
         profiles = self.service.build_profiles(assignments)
         assert len(profiles) == 2
+
+    def test_explicit_valid_utc_timestamps_from_spec(self) -> None:
+        """
+        Valid timestamps from specification:
+        2026-01-01T00:00:00Z
+        2026-01-02T00:00:00Z
+        2026-01-03T00:00:00Z
+        """
+        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 1, 2, 0, 0, 0, tzinfo=UTC)
+        t3 = datetime(2026, 1, 3, 0, 0, 0, tzinfo=UTC)
+
+        assignments = [
+            RegimeAssignment(timestamp=t1, regime_id=0, regime_label="REGIME_0"),
+            RegimeAssignment(timestamp=t2, regime_id=1, regime_label="REGIME_1"),
+            RegimeAssignment(timestamp=t3, regime_id=0, regime_label="REGIME_0"),
+        ]
+
+        summary = self.service.summarize_history(assignments)
+        assert summary.analysis_start == t1
+        assert summary.analysis_end == t3
+        assert summary.total_observations == 3

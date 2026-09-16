@@ -110,3 +110,55 @@ class TestIntelligenceDeterminism:
 
         assert p1.feature_statistics["alpha"].mean == p2.feature_statistics["alpha"].mean
         assert p1.feature_statistics["beta"].mean == p2.feature_statistics["beta"].mean
+
+    def test_ranking_permutation_invariance(self) -> None:
+        """Profiles passed in different order permutations produce identical ranking."""
+        import itertools
+
+        from app.modules.regime_intelligence.domain.models import FeatureStatistic, RegimeProfile
+
+        def _p(r_id: int, freq: float) -> RegimeProfile:
+            return RegimeProfile(
+                regime_id=r_id,
+                regime_label=f"REGIME_{r_id}",
+                observation_count=int(freq * 100),
+                frequency=freq,
+                percentage=freq * 100.0,
+                run_count=1,
+                average_duration=10.0,
+                median_duration=10.0,
+                min_duration=10,
+                max_duration=10,
+                feature_statistics={
+                    "ret": FeatureStatistic(
+                        feature_name="ret", observation_count=10, mean=float(r_id)
+                    )
+                },
+            )
+
+        profiles = [_p(0, 0.4), _p(1, 0.4), _p(2, 0.2)]
+        reference_ranking = self.service.rank_regimes(profiles, metric="frequency")
+
+        for perm in itertools.permutations(profiles):
+            ranked = self.service.rank_regimes(list(perm), metric="frequency")
+            assert [p.regime_id for p in ranked] == [p.regime_id for p in reference_ranking]
+
+    def test_repeated_summarize_history_json_identity(self) -> None:
+        """10 repeated executions produce byte-for-byte identical JSON serialization."""
+        assignments = [
+            RegimeAssignment(
+                timestamp=_ts(i),
+                regime_id=i % 3,
+                regime_label=f"REGIME_{i % 3}",
+                features={"alpha": float(i), "beta": float(i * 2)},
+            )
+            for i in range(30)
+        ]
+
+        # Fixed computed_at to verify deterministic model output
+        first_summary = self.service.summarize_history(assignments)
+        first_json = first_summary.model_dump_json(exclude={"computed_at"})
+
+        for _ in range(9):
+            subsequent = self.service.summarize_history(assignments)
+            assert subsequent.model_dump_json(exclude={"computed_at"}) == first_json

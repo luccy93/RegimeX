@@ -131,3 +131,58 @@ class TestRegimeFrequencyAnalytics:
 
         total_freq = sum(p.frequency for p in profiles.values())
         assert math.isclose(total_freq, 1.0, abs_tol=1e-6)
+
+    def test_highly_imbalanced_regimes(self) -> None:
+        """Test extreme class imbalance: 99 observations of R0 vs 1 observation of R1."""
+        regimes = [0] * 99 + [1]
+        assignments = _make_assignments(regimes)
+        profiles = self.service.build_profiles(assignments)
+
+        assert len(profiles) == 2
+        p0 = profiles[0]
+        p1 = profiles[1]
+
+        assert p0.observation_count == 99
+        assert math.isclose(p0.frequency, 0.99, abs_tol=1e-9)
+        assert math.isclose(p0.percentage, 99.0, abs_tol=1e-9)
+
+        assert p1.observation_count == 1
+        assert math.isclose(p1.frequency, 0.01, abs_tol=1e-9)
+        assert math.isclose(p1.percentage, 1.0, abs_tol=1e-9)
+
+        assert math.isclose(p0.frequency + p1.frequency, 1.0, abs_tol=1e-6)
+        assert p0.observation_count + p1.observation_count == 100
+
+    def test_balanced_multi_regimes(self) -> None:
+        """Balanced distribution across 4 regimes (25 each)."""
+        regimes = [0] * 25 + [1] * 25 + [2] * 25 + [3] * 25
+        assignments = _make_assignments(regimes)
+        profiles = self.service.build_profiles(assignments)
+
+        assert len(profiles) == 4
+        for r_id in range(4):
+            p = profiles[r_id]
+            assert p.observation_count == 25
+            assert math.isclose(p.frequency, 0.25, abs_tol=1e-9)
+            assert math.isclose(p.percentage, 25.0, abs_tol=1e-9)
+
+        total_obs = sum(p.observation_count for p in profiles.values())
+        assert total_obs == 100
+        assert math.isclose(sum(p.frequency for p in profiles.values()), 1.0, abs_tol=1e-6)
+
+    def test_large_count_frequency_invariance(self) -> None:
+        """10,000 observations across 5 regimes preserve normalization and count invariants."""
+        regimes = [i % 5 for i in range(10_000)]
+        assignments = _make_assignments(regimes)
+        profiles = self.service.build_profiles(assignments)
+
+        assert len(profiles) == 5
+        for r_id in range(5):
+            p = profiles[r_id]
+            assert p.observation_count == 2000
+            assert math.isclose(p.frequency, 0.2, abs_tol=1e-9)
+            assert math.isclose(p.percentage, 20.0, abs_tol=1e-9)
+
+        total_obs = sum(p.observation_count for p in profiles.values())
+        assert total_obs == 10_000
+        assert math.isclose(sum(p.frequency for p in profiles.values()), 1.0, abs_tol=1e-6)

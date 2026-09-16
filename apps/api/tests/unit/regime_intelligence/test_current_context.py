@@ -112,3 +112,36 @@ class TestCurrentRegimeContext:
         assert ctx_at_t.current_regime_id == ctx_from_slice.current_regime_id
         assert ctx_at_t.observations_in_current_run == ctx_from_slice.observations_in_current_run
         assert math.isclose(ctx_at_t.historical_frequency, ctx_from_slice.historical_frequency)
+
+    def test_exact_user_spec_fixture_r0_r0_r1_r1_r1(self) -> None:
+        """Fixture from spec: R0 R0 R1 R1 R1 -> Current regime R1, run length 3, freq 0.6."""
+        assignments = _make_assignments([0, 0, 1, 1, 1])
+        ctx = self.service.get_current_context(assignments)
+
+        assert ctx.current_regime_id == 1
+        assert ctx.current_regime_label == "REGIME_1"
+        assert ctx.observations_in_current_run == 3
+        assert ctx.current_timestamp == assignments[-1].timestamp
+        assert math.isclose(ctx.historical_frequency, 0.6, abs_tol=1e-9)
+        assert ctx.historical_average_duration == 3.0
+        assert ctx.historical_max_duration == 3
+        assert ctx.historical_min_duration == 3
+        assert ctx.historical_run_count == 1
+        assert ctx.observations_in_current_run >= 1
+
+    def test_current_context_after_multiple_transitions(self) -> None:
+        """Current regime correctly identified after multiple regime transitions."""
+        # Transitions: 0 -> 1 -> 0 -> 2 -> 1 (4 in run)
+        regimes = [0, 1, 0, 2, 1, 1, 1, 1]
+        assignments = _make_assignments(regimes)
+        ctx = self.service.get_current_context(assignments)
+
+        assert ctx.current_regime_id == 1
+        assert ctx.observations_in_current_run == 4
+        assert ctx.current_timestamp == assignments[-1].timestamp
+        # R1 had 2 runs: [1, 4] -> total obs = 5, total bars = 8 -> freq = 5/8 = 0.625
+        assert math.isclose(ctx.historical_frequency, 0.625, abs_tol=1e-9)
+        assert ctx.historical_run_count == 2
+        assert ctx.historical_average_duration == 2.5
+        assert ctx.historical_max_duration == 4
+        assert ctx.historical_min_duration == 1

@@ -163,3 +163,39 @@ class TestDurationAnalytics:
         for p in profiles.values():
             assert p.min_duration <= p.median_duration <= p.max_duration
             assert p.min_duration <= p.average_duration <= p.max_duration
+
+    def test_first_regime_change_run_length(self) -> None:
+        """First transition from R0 to R1 after an initial spell."""
+        regimes = [0, 0, 0, 1]
+        runs = self.analyzer.compute_runs(regimes)
+        assert runs[0] == [3]
+        assert runs[1] == [1]
+
+        r_id, current_run = self.analyzer.compute_current_run(regimes)
+        assert r_id == 1
+        assert current_run == 1
+
+    def test_multiple_repeated_runs_same_regime(self) -> None:
+        """Multiple non-contiguous runs of the same regime."""
+        # R0: runs [2, 3, 1]; R1: runs [1, 2]
+        regimes = [0, 0, 1, 0, 0, 0, 1, 1, 0]
+        runs = self.analyzer.compute_runs(regimes)
+        assert runs[0] == [2, 3, 1]
+        assert runs[1] == [1, 2]
+
+        assignments = _make_assignments(regimes)
+        profiles = self.service.build_profiles(assignments)
+
+        p0 = profiles[0]
+        assert p0.run_count == 3
+        assert p0.min_duration == 1
+        assert p0.max_duration == 3
+        assert math.isclose(p0.average_duration, 2.0, abs_tol=1e-9)
+        assert math.isclose(p0.median_duration, 2.0, abs_tol=1e-9)
+
+        p1 = profiles[1]
+        assert p1.run_count == 2
+        assert p1.min_duration == 1
+        assert p1.max_duration == 2
+        assert math.isclose(p1.average_duration, 1.5, abs_tol=1e-9)
+        assert math.isclose(p1.median_duration, 1.5, abs_tol=1e-9)

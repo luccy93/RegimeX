@@ -107,3 +107,69 @@ class TestRegimeRanking:
     def test_empty_profiles_ranking(self) -> None:
         """Ranking empty profiles list returns empty list."""
         assert self.service.rank_regimes([], metric="frequency") == []
+
+    def test_exact_user_spec_tie_breaking(self) -> None:
+        """
+        Example from specification:
+        REGIME_0 frequency = 0.4
+        REGIME_1 frequency = 0.4
+        REGIME_2 frequency = 0.2
+        Tied regimes R0 and R1 are ordered by regime_id ascending (0 < 1).
+        Expected order: REGIME_0, REGIME_1, REGIME_2
+        """
+        p0 = _make_profile(regime_id=0, frequency=0.4, avg_duration=4.0)
+        p1 = _make_profile(regime_id=1, frequency=0.4, avg_duration=4.0)
+        p2 = _make_profile(regime_id=2, frequency=0.2, avg_duration=2.0)
+
+        # Shuffled input order
+        ranked = self.service.rank_regimes([p1, p2, p0], metric="frequency", ascending=False)
+        assert [p.regime_id for p in ranked] == [0, 1, 2]
+
+    def test_exhaustive_metrics_ranking(self) -> None:
+        """Verify all supported duration, count, and feature metric ranking keys."""
+        # p0: count 10, min 2, max 8, median 5.0, runs 2, feat min 0.0, max 0.02, med 0.01, std 0.01
+        p0 = _make_profile(
+            regime_id=0, frequency=0.1, avg_duration=5.0, run_count=2, feature_mean=0.01
+        )
+        # p1: count 30, min 4, max 6, median 5.0, runs 6, feat min 0.04, max 0.06
+        p1 = _make_profile(
+            regime_id=1, frequency=0.3, avg_duration=5.0, run_count=6, feature_mean=0.05
+        )
+        # p2: count 60, min 1, max 10, median 5.0, runs 12, feat min -0.03, max -0.01
+        p2 = _make_profile(
+            regime_id=2, frequency=0.6, avg_duration=5.0, run_count=12, feature_mean=-0.02
+        )
+
+        profiles = [p0, p1, p2]
+
+        # 1. observation_count descending -> p2 (60), p1 (30), p0 (10)
+        ranked_cnt = self.service.rank_regimes(
+            profiles, metric="observation_count", ascending=False
+        )
+        assert [p.regime_id for p in ranked_cnt] == [2, 1, 0]
+
+        # 2. run_count descending -> p2 (12), p1 (6), p0 (2)
+        ranked_runs = self.service.rank_regimes(profiles, metric="run_count", ascending=False)
+        assert [p.regime_id for p in ranked_runs] == [2, 1, 0]
+
+        # 3. Check dynamic feature metrics ranking
+        ranked_f_med = self.service.rank_regimes(
+            profiles, metric="feature_median:return_1", ascending=False
+        )
+        assert [p.regime_id for p in ranked_f_med] == [1, 0, 2]
+
+        ranked_f_min = self.service.rank_regimes(
+            profiles, metric="feature_min:return_1", ascending=False
+        )
+        assert [p.regime_id for p in ranked_f_min] == [1, 0, 2]
+
+        ranked_f_max = self.service.rank_regimes(
+            profiles, metric="feature_max:return_1", ascending=False
+        )
+        assert [p.regime_id for p in ranked_f_max] == [1, 0, 2]
+
+        ranked_f_std = self.service.rank_regimes(
+            profiles, metric="feature_std:return_1", ascending=False
+        )
+        # All have std=0.01, tie break regime_id ascending: 0, 1, 2
+        assert [p.regime_id for p in ranked_f_std] == [0, 1, 2]

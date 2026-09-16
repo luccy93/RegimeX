@@ -117,3 +117,53 @@ class TestArchitectureBoundaries:
             assert pattern not in code_str, (
                 f"Forbidden zero-imputation pattern '{pattern}' detected in {stats_file.name}."
             )
+
+    def test_v09_has_no_future_scope_classes(self) -> None:
+        """
+        Verify V09 codebase contains zero implementations or references to forbidden
+        future concepts (V10 GMM/HMM, V11 Ensemble, V12 Transition, V13 Risk,
+        V14 Backtesting, V21 AI).
+        """
+        module_dir = Path(__file__).parents[3] / "app" / "modules" / "regime_intelligence"
+        forbidden_classes = {
+            "TransitionMatrix",
+            "MarkovChain",
+            "TransitionProbability",
+            "GMMRegimeDetector",
+            "HMMRegimeDetector",
+            "EnsembleRegimeDetector",
+            "VaR",
+            "BacktestEngine",
+            "TradingSignal",
+            "BuySignal",
+            "SellSignal",
+        }
+
+        for py_file in module_dir.rglob("*.py"):
+            tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    assert node.name not in forbidden_classes, (
+                        f"Forbidden class '{node.name}' defined in '{py_file.name}'."
+                    )
+
+    def test_no_economic_overclaiming_labels(self) -> None:
+        """
+        Ensure V09 code does not generate subjective or overclaiming economic labels
+        ('bull', 'bear', 'crash', 'buy', 'sell', 'safe', 'unsafe').
+        """
+        module_dir = Path(__file__).parents[3] / "app" / "modules" / "regime_intelligence"
+        overclaiming_tokens = {
+            "bull_market",
+            "bear_market",
+            "market_crash",
+            "buy_signal",
+            "sell_signal",
+        }
+
+        for py_file in module_dir.rglob("*.py"):
+            content = py_file.read_text(encoding="utf-8").lower()
+            for token in overclaiming_tokens:
+                assert token not in content, (
+                    f"Forbidden overclaiming economic token '{token}' found in '{py_file.name}'."
+                )
