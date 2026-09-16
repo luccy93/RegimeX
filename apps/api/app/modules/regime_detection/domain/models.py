@@ -94,6 +94,96 @@ class RegimeModelConfig(BaseModel):
         return v
 
 
+class GMMModelConfig(BaseModel):
+    """
+    Hyperparameter and execution configuration for a Gaussian Mixture Model (GMM).
+
+    Guarantees:
+    - Immutable (frozen).
+    - Validates component counts, covariance type, iterations, tolerance, and regularization.
+    - Zero vendor/scikit-learn dependencies in domain contracts.
+    """
+
+    model_config = {"frozen": True}
+
+    model_name: Annotated[
+        str,
+        Field(min_length=1, max_length=100, description="Model identifier name"),
+    ] = "gmm"
+    model_version: Annotated[
+        str,
+        Field(min_length=1, max_length=50, description="Semantic model version"),
+    ] = "1.0.0"
+    n_components: Annotated[
+        int,
+        Field(ge=1, le=50, description="Number of mixture components / regimes"),
+    ] = 4
+    covariance_type: Annotated[
+        str,
+        Field(description="Type of covariance parameters: 'full', 'tied', 'diag', 'spherical'"),
+    ] = "full"
+    random_state: Annotated[
+        int,
+        Field(ge=0, description="Deterministic random seed for reproducibility"),
+    ] = 42
+    max_iter: Annotated[
+        int,
+        Field(ge=1, le=10000, description="Maximum iterations for EM algorithm convergence"),
+    ] = 100
+    tol: Annotated[
+        float,
+        Field(gt=0.0, description="Convergence threshold for EM log-likelihood lower bound"),
+    ] = 1e-3
+    reg_covar: Annotated[
+        float,
+        Field(
+            gt=0.0,
+            description="Non-negative regularization added to covariance diagonal",
+        ),
+    ] = 1e-6
+    init_params: Annotated[
+        str,
+        Field(
+            description="Initialization method: 'kmeans', 'k-means++', 'random', 'random_from_data'"
+        ),
+    ] = "kmeans"
+    feature_names: tuple[str, ...] = Field(
+        default=(),
+        description="Explicit subset of feature names to use in model training and inference",
+    )
+
+    @field_validator("covariance_type")
+    @classmethod
+    def validate_covariance_type(cls, v: str) -> str:
+        """Ensure covariance_type is recognized by scikit-learn standard."""
+        allowed = {"full", "tied", "diag", "spherical"}
+        if v not in allowed:
+            raise ValueError(f"covariance_type '{v}' must be one of {allowed}.")
+        return v
+
+    @field_validator("init_params")
+    @classmethod
+    def validate_init_params(cls, v: str) -> str:
+        """Ensure initialization method is recognized."""
+        allowed = {"kmeans", "k-means++", "random", "random_from_data"}
+        if v not in allowed:
+            raise ValueError(f"init_params '{v}' must be one of {allowed}.")
+        return v
+
+    @field_validator("feature_names")
+    @classmethod
+    def validate_feature_names(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        """Ensure feature names are non-empty and distinct."""
+        seen: set[str] = set()
+        for name in v:
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Feature names must be non-empty strings.")
+            if name in seen:
+                raise ValueError(f"Duplicate feature name detected in config: '{name}'.")
+            seen.add(name)
+        return v
+
+
 class ClusterProfile(BaseModel):
     """
     Statistical profile of an identified cluster in feature space.
@@ -158,7 +248,7 @@ class FitResult(BaseModel):
     model_name: str = Field(description="Name of the fitted model")
     model_version: str = Field(description="Version of the fitted model")
     algorithm: str = Field(description="Algorithm type")
-    n_clusters: int = Field(ge=2, description="Number of regimes/clusters")
+    n_clusters: int = Field(ge=1, description="Number of regimes/clusters")
     random_state: int = Field(description="Random seed used during fitting")
     feature_names: tuple[str, ...] = Field(description="Ordered features used for fitting")
     training_sample_count: int = Field(ge=1, description="Number of observations used in training")
@@ -166,10 +256,22 @@ class FitResult(BaseModel):
         description="UTC timestamp of the earliest training observation"
     )
     training_end: datetime = Field(description="UTC timestamp of the latest training observation")
-    inertia: float = Field(ge=0.0, description="Sum of squared distances to closest cluster center")
+    inertia: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Sum of squared distances to closest center (0.0 for non-inertia models)",
+    )
     iterations: int = Field(ge=1, description="Number of iterations run to reach convergence")
     cluster_profiles: tuple[ClusterProfile, ...] = Field(
         description="Statistical summary of each identified cluster"
+    )
+    lower_bound: float | None = Field(
+        default=None,
+        description="Log-likelihood lower bound computed by EM (for GMM)",
+    )
+    converged: bool | None = Field(
+        default=None,
+        description="Convergence status flag from EM algorithm (for GMM)",
     )
     fitted_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=UTC),

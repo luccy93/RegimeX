@@ -102,3 +102,31 @@ class ModelPredictionError(RegimeDetectionError):
 
     http_status: int = 500
     error_code: str = "MODEL_PREDICTION_ERROR"
+
+
+class InvalidGMMConfigurationError(InvalidModelConfigurationError):
+    """Raised when GMM hyperparameters or initialization violate domain constraints."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_GMM_CONFIGURATION"
+
+
+class GMMFitError(ModelTrainingError):
+    """Raised when Gaussian Mixture Model fitting fails due to algorithmic or numerical issues."""
+
+    http_status: int = 500
+    error_code: str = "GMM_FIT_ERROR"
+
+
+class GMMConvergenceError(ModelTrainingError):
+    """Raised when Gaussian Mixture Model fails to converge within max_iter."""
+
+    http_status: int = 422
+    error_code: str = "GMM_CONVERGENCE_ERROR"
+
+
+class GMMPredictionError(ModelPredictionError):
+    """Raised when Gaussian Mixture Model inference or posterior probability estimation fails."""
+
+    http_status: int = 500
+    error_code: str = "GMM_PREDICTION_ERROR"
