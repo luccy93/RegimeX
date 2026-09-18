@@ -19,7 +19,7 @@ V09 Regime Intelligence Layer (Descriptive Analytics)
            ↓
 V10 Probabilistic Regime Models
     ├── Commit 01: Gaussian Mixture Model (GMM) [COMPLETE]
-    └── Commit 02: Hidden Markov Model (HMM)   [NOT STARTED]
+    └── Commit 02: Hidden Markov Model (HMM)   [COMPLETE]
 ```
 
 ---
@@ -29,7 +29,7 @@ V10 Probabilistic Regime Models
 | Commit | Scope | Status | Official Commit Message |
 | :--- | :--- | :---: | :--- |
 | **Commit 01** | **Probabilistic Regime Models (Gaussian Mixture Model)** | **COMPLETE** | `feat(ml): add probabilistic regime models` |
-| **Commit 02** | **Hidden Markov Regime Model** | **NOT STARTED** | `feat(ml): add hidden Markov regime model` |
+| **Commit 02** | **Hidden Markov Regime Model** | **COMPLETE** | `feat(ml): add hidden Markov regime model` |
 
 ---
 
@@ -52,11 +52,23 @@ V10 Probabilistic Regime Models
 
 ---
 
-## 4. Volume 10 Commit 02 Scope Notice (NOT STARTED)
+## 4. Volume 10 Commit 02 Summary — Hidden Markov Model
 
-Commit 02 will introduce temporal dynamic modeling via **Hidden Markov Models (HMM)**.
-- First-order Markov chain state transitions.
-- Transition probability matrices ($P(S_t = j \mid S_{t-1} = i)$).
-- Emission distributions and Viterbi decoding.
+### Core Deliverables
+- **Domain Models & Validation (`domain/models.py`, `domain/errors.py`)**:
+  - `HMMModelConfig`: Immutable (frozen) Pydantic configuration validating `n_components` ($1..50$), `covariance_type` (`full`, `tied`, `diag`, `spherical`), `random_state`, `n_iter`, `tol`, `min_covar`, `algorithm` (`viterbi`, `map`), `init_params`, `params`, `implementation`, and `feature_names`.
+  - Domain exceptions: `InvalidHMMConfigurationError`, `HMMFitError`, `HMMConvergenceError`, `HMMPredictionError`.
+  - Complete domain purity: zero imports of `hmmlearn`, `sklearn`, `numpy`, or `pandas` in domain models.
+- **Infrastructure Implementation (`infrastructure/models/hmm.py`)**:
+  - `GaussianHMMRegimeDetector`: Implements `RegimeDetector` protocol wrapping `hmmlearn.hmm.GaussianHMM` with standardized anti-leakage scaling.
+  - **Temporal Sequence Decoding**: `predict()` implements Viterbi global sequence decoding to determine optimal hidden state sequence paths under transition dynamics.
+  - **Bayesian Posterior Probabilities**: `predict_proba()` computes forward-backward marginal posterior probabilities $P(S_t = k \mid X_{1:T})$ normalized strictly to $1.0 \pm 10^{-6}$.
+  - **Deterministic State Canonicalization**: Maps raw algorithmic states to neutral labels (`REGIME_0`, `REGIME_1`, ...) ordered deterministically by invariant unscaled emission signatures.
+  - **Posterior Column Remapping**: Realigns posterior probability columns so column $c$ corresponds strictly to canonical `REGIME_c`.
+  - **Anti-Leakage Standard Scaling**: Strictly in-sample `StandardScaler` fitted on training observations and frozen during inference.
+  - **Diagnostic Telemetry & Metadata**: Populates `FitResult` with sequence log-likelihood score (`lower_bound`), EM convergence status, iterations, and comprehensive model limitation disclosures.
+- **Application Service Integration (`application/services.py`)**:
+  - `RegimeDetectionService` supports seamless dependency injection with `GaussianHMMRegimeDetector` conforming to the `RegimeDetector` protocol.
+- **Technical Specification (`docs/V10/HMM_TEMPORAL_MODEL.md`)**:
+  - Authoritative mathematical specification of initial state probabilities, transition matrices, emission distributions, and sequence decoding.
 
-*Commit 02 implementation has not yet begun.*

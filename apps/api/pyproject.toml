@@ -142,7 +142,15 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # Third-party libraries without complete type stubs
-module = ["fastapi.*", "yfinance", "yfinance.*", "pandas", "pandas.*", "sklearn.*"]
+module = [
+    "fastapi.*",
+    "yfinance",
+    "yfinance.*",
+    "pandas",
+    "pandas.*",
+    "sklearn.*",
+    "hmmlearn.*",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

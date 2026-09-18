@@ -184,6 +184,146 @@ class GMMModelConfig(BaseModel):
         return v
 
 
+class HMMModelConfig(BaseModel):
+    """
+    Hyperparameter and execution configuration for a Hidden Markov Model (HMM).
+
+    Guarantees:
+    - Immutable (frozen).
+    - Validates state counts, covariance type, iterations, tolerance, regularization,
+      and decoding algorithm.
+    - Zero vendor dependencies in domain contracts.
+    """
+
+    model_config = {"frozen": True}
+
+    model_name: Annotated[
+        str,
+        Field(min_length=1, max_length=100, description="Model identifier name"),
+    ] = "hmm"
+    model_version: Annotated[
+        str,
+        Field(min_length=1, max_length=50, description="Semantic model version"),
+    ] = "1.0.0"
+    n_components: Annotated[
+        int,
+        Field(ge=1, le=50, description="Number of hidden states / regimes"),
+    ] = 4
+    covariance_type: Annotated[
+        str,
+        Field(description="Type of covariance parameters: 'full', 'tied', 'diag', 'spherical'"),
+    ] = "full"
+    random_state: Annotated[
+        int,
+        Field(ge=0, description="Deterministic random seed for reproducibility"),
+    ] = 42
+    n_iter: Annotated[
+        int,
+        Field(ge=1, le=10000, description="Maximum iterations for Baum-Welch EM convergence"),
+    ] = 100
+    tol: Annotated[
+        float,
+        Field(gt=0.0, description="Convergence threshold for EM log-likelihood change"),
+    ] = 1e-3
+    min_covar: Annotated[
+        float,
+        Field(
+            gt=0.0,
+            description="Floor added to covariance diagonal to prevent collapse",
+        ),
+    ] = 1e-3
+    algorithm: Annotated[
+        str,
+        Field(description="Decoding algorithm for predict(): 'viterbi' or 'map'"),
+    ] = "viterbi"
+    init_params: Annotated[
+        str,
+        Field(
+            description=(
+                "Parameters to initialize: subset of 'stmc' (startprob, transmat, means, covars)"
+            )
+        ),
+    ] = "stmc"
+    params: Annotated[
+        str,
+        Field(description="Parameters to update during M-step: subset of 'stmc'"),
+    ] = "stmc"
+    implementation: Annotated[
+        str,
+        Field(description="Implementation engine: 'log' or 'scaling'"),
+    ] = "log"
+    feature_names: tuple[str, ...] = Field(
+        default=(),
+        description="Explicit subset of feature names to use in model training and inference",
+    )
+
+    @field_validator("covariance_type")
+    @classmethod
+    def validate_covariance_type(cls, v: str) -> str:
+        """Ensure covariance_type is recognized by standard."""
+        allowed = {"full", "tied", "diag", "spherical"}
+        if v not in allowed:
+            raise ValueError(f"covariance_type '{v}' must be one of {allowed}.")
+        return v
+
+    @field_validator("algorithm")
+    @classmethod
+    def validate_algorithm(cls, v: str) -> str:
+        """Ensure decoding algorithm is recognized."""
+        allowed = {"viterbi", "map"}
+        if v not in allowed:
+            raise ValueError(f"algorithm '{v}' must be one of {allowed}.")
+        return v
+
+    @field_validator("init_params")
+    @classmethod
+    def validate_init_params(cls, v: str) -> str:
+        """Ensure init_params contains only valid parameter characters ('s', 't', 'm', 'c')."""
+        allowed = {"s", "t", "m", "c"}
+        if not v:
+            return v
+        for char in v:
+            if char not in allowed:
+                raise ValueError(
+                    f"init_params character '{char}' is invalid; must be subset of 'stmc'."
+                )
+        return v
+
+    @field_validator("params")
+    @classmethod
+    def validate_params(cls, v: str) -> str:
+        """Ensure params contains only valid parameter characters ('s', 't', 'm', 'c')."""
+        allowed = {"s", "t", "m", "c"}
+        if not v:
+            return v
+        for char in v:
+            if char not in allowed:
+                raise ValueError(f"params character '{char}' is invalid; must be subset of 'stmc'.")
+        return v
+
+    @field_validator("implementation")
+    @classmethod
+    def validate_implementation(cls, v: str) -> str:
+        """Ensure implementation is recognized."""
+        allowed = {"log", "scaling"}
+        if v not in allowed:
+            raise ValueError(f"implementation '{v}' must be one of {allowed}.")
+        return v
+
+    @field_validator("feature_names")
+    @classmethod
+    def validate_feature_names(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        """Ensure feature names are non-empty and distinct."""
+        seen: set[str] = set()
+        for name in v:
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Feature names must be non-empty strings.")
+            if name in seen:
+                raise ValueError(f"Duplicate feature name detected in config: '{name}'.")
+            seen.add(name)
+        return v
+
+
 class ClusterProfile(BaseModel):
     """
     Statistical profile of an identified cluster in feature space.
@@ -267,11 +407,13 @@ class FitResult(BaseModel):
     )
     lower_bound: float | None = Field(
         default=None,
-        description="Log-likelihood lower bound computed by EM (for GMM)",
+        description=(
+            "Log-likelihood lower bound computed by EM (for GMM) or log-likelihood score (for HMM)"
+        ),
     )
     converged: bool | None = Field(
         default=None,
-        description="Convergence status flag from EM algorithm (for GMM)",
+        description="Convergence status flag from EM algorithm (for GMM/HMM)",
     )
     fitted_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=UTC),

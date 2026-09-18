@@ -18,9 +18,13 @@ from app.modules.regime_detection.domain.errors import (
     GMMConvergenceError,
     GMMFitError,
     GMMPredictionError,
+    HMMConvergenceError,
+    HMMFitError,
+    HMMPredictionError,
     InsufficientTrainingDataError,
     InvalidFeatureMatrixError,
     InvalidGMMConfigurationError,
+    InvalidHMMConfigurationError,
     InvalidModelConfigurationError,
     ModelNotFittedError,
     ModelPredictionError,
@@ -35,6 +39,7 @@ from app.modules.regime_detection.domain.models import (
     FeatureMatrix,
     FitResult,
     GMMModelConfig,
+    HMMModelConfig,
     ModelState,
     RegimeDetectionResult,
     RegimeModelConfig,
@@ -42,6 +47,9 @@ from app.modules.regime_detection.domain.models import (
 )
 from app.modules.regime_detection.infrastructure.models.gmm import (
     GaussianMixtureRegimeDetector,
+)
+from app.modules.regime_detection.infrastructure.models.hmm import (
+    GaussianHMMRegimeDetector,
 )
 from app.modules.regime_detection.infrastructure.models.kmeans import (
     KMeansRegimeDetector,
@@ -57,10 +65,16 @@ __all__ = [
     "GMMFitError",
     "GMMModelConfig",
     "GMMPredictionError",
+    "GaussianHMMRegimeDetector",
     "GaussianMixtureRegimeDetector",
+    "HMMConvergenceError",
+    "HMMFitError",
+    "HMMModelConfig",
+    "HMMPredictionError",
     "InsufficientTrainingDataError",
     "InvalidFeatureMatrixError",
     "InvalidGMMConfigurationError",
+    "InvalidHMMConfigurationError",
     "InvalidModelConfigurationError",
     "KMeansRegimeDetector",
     "ModelNotFittedError",

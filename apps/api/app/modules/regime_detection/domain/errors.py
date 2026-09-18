@@ -130,3 +130,31 @@ class GMMPredictionError(ModelPredictionError):
 
     http_status: int = 500
     error_code: str = "GMM_PREDICTION_ERROR"
+
+
+class InvalidHMMConfigurationError(InvalidModelConfigurationError):
+    """Raised when HMM hyperparameters or initialization violate domain constraints."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_HMM_CONFIGURATION"
+
+
+class HMMFitError(ModelTrainingError):
+    """Raised when Hidden Markov Model fitting fails due to algorithmic or numerical issues."""
+
+    http_status: int = 500
+    error_code: str = "HMM_FIT_ERROR"
+
+
+class HMMConvergenceError(ModelTrainingError):
+    """Raised when Hidden Markov Model fails to converge within n_iter."""
+
+    http_status: int = 422
+    error_code: str = "HMM_CONVERGENCE_ERROR"
+
+
+class HMMPredictionError(ModelPredictionError):
+    """Raised when Hidden Markov Model inference or posterior probability estimation fails."""
+
+    http_status: int = 500
+    error_code: str = "HMM_PREDICTION_ERROR"
