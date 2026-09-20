@@ -150,8 +150,10 @@ module = [
     "pandas.*",
     "sklearn.*",
     "hmmlearn.*",
+    "scipy.*",
 ]
 ignore_missing_imports = true
+
 
 [[tool.mypy.overrides]]
 # Test files: relax strict return-type requirements

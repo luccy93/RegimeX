@@ -158,3 +158,78 @@ class HMMPredictionError(ModelPredictionError):
 
     http_status: int = 500
     error_code: str = "HMM_PREDICTION_ERROR"
+
+
+class EnsembleError(RegimeDetectionError):
+    """Base exception for all regime model ensemble errors."""
+
+    http_status: int = 500
+    error_code: str = "ENSEMBLE_ERROR"
+
+
+class InvalidEnsembleConfigurationError(InvalidModelConfigurationError, EnsembleError):
+    """Raised when ensemble configuration violates domain constraints."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_ENSEMBLE_CONFIGURATION"
+
+
+class EnsembleModelUnavailableError(EnsembleError):
+    """Raised when a component model is unavailable, unfitted, or failed."""
+
+    http_status: int = 422
+    error_code: str = "ENSEMBLE_MODEL_UNAVAILABLE"
+
+    def __init__(
+        self,
+        model_name: str,
+        reason: str = "Model is unavailable or not fitted",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        merged = {"model_name": model_name, "reason": reason, **(details or {})}
+        super().__init__(
+            f"Component model '{model_name}' is unavailable: {reason}.",
+            merged,
+        )
+        self.model_name = model_name
+        self.reason = reason
+
+
+class InsufficientUsableModelsError(EnsembleError):
+    """Raised when the number of usable component models falls below minimum_required_models."""
+
+    http_status: int = 422
+    error_code: str = "INSUFFICIENT_USABLE_MODELS"
+
+    def __init__(
+        self,
+        required_models: int,
+        usable_models: int,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        merged = {
+            "required_models": required_models,
+            "usable_models": usable_models,
+            **(details or {}),
+        }
+        super().__init__(
+            f"Insufficient usable models for ensemble: requires at least {required_models} "
+            f"models, but only {usable_models} are available/usable.",
+            merged,
+        )
+        self.required_models = required_models
+        self.usable_models = usable_models
+
+
+class RegimeAlignmentError(EnsembleError):
+    """Raised when alignment between heterogeneous model regimes fails or is ambiguous."""
+
+    http_status: int = 422
+    error_code: str = "REGIME_ALIGNMENT_ERROR"
+
+
+class EnsembleExecutionError(ModelPredictionError, EnsembleError):
+    """Raised when an algorithmic failure occurs during ensemble aggregation or prediction."""
+
+    http_status: int = 500
+    error_code: str = "ENSEMBLE_EXECUTION_ERROR"

@@ -631,3 +631,299 @@ class FeatureMatrix(BaseModel):
             raise KeyError(f"Feature '{feature_name}' not in matrix features: {self.feature_names}")
         col_idx = self.feature_names.index(feature_name)
         return tuple(row[col_idx] for row in self.values)
+
+
+class AlignmentPolicy(StrEnum):
+    """Strategy for aligning heterogeneous model regime identities into canonical space."""
+
+    CANONICAL_LABEL = "canonical_label"
+    FEATURE_SIMILARITY = "feature_similarity"
+    EXPLICIT_MAPPING = "explicit_mapping"
+
+
+class AggregationStrategy(StrEnum):
+    """Consensus voting strategy for combining component regime predictions."""
+
+    WEIGHTED_VOTING = "weighted_voting"
+    MAJORITY_VOTING = "majority_voting"
+    PLURALITY_VOTING = "plurality_voting"
+
+
+class FailurePolicy(StrEnum):
+    """Behavior when a component model is unavailable or encounters an error."""
+
+    FAIL_FAST = "fail_fast"
+    SKIP_UNAVAILABLE = "skip_unavailable"
+    BEST_EFFORT = "best_effort"
+
+
+class EnsembleTieBreaker(StrEnum):
+    """Deterministic tie-breaking mechanism for ensemble consensus voting."""
+
+    LOWEST_REGIME_ID = "lowest_regime_id"
+    MODEL_PRECEDENCE = "model_precedence"
+
+
+class EnsembleModelConfig(BaseModel):
+    """
+    Hyperparameter and execution configuration for a Regime Model Ensemble.
+
+    Guarantees:
+    - Immutable (frozen).
+    - Validates enabled models, weights, minimum required models, and policies.
+    - Zero vendor/ML dependencies in domain layer.
+    """
+
+    model_config = {"frozen": True}
+
+    model_name: Annotated[
+        str,
+        Field(min_length=1, max_length=100, description="Ensemble model identifier name"),
+    ] = "regime-ensemble"
+    model_version: Annotated[
+        str,
+        Field(min_length=1, max_length=50, description="Semantic model version"),
+    ] = "1.0.0"
+    enabled_models: tuple[str, ...] = Field(
+        default=("kmeans", "gmm", "hmm"),
+        description="Identifiers of component models participating in the ensemble",
+    )
+    model_weights: dict[str, float] = Field(
+        default_factory=lambda: {"kmeans": 1.0, "gmm": 1.0, "hmm": 1.0},
+        description="Relative voting weights assigned to each component model",
+    )
+    aggregation_strategy: AggregationStrategy = Field(
+        default=AggregationStrategy.WEIGHTED_VOTING,
+        description="Mechanism used to aggregate aligned model predictions into consensus",
+    )
+    minimum_required_models: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Minimum number of successful models required to produce a consensus",
+        ),
+    ] = 2
+    failure_policy: FailurePolicy = Field(
+        default=FailurePolicy.SKIP_UNAVAILABLE,
+        description="Policy governing execution when one or more models fail or are unavailable",
+    )
+    alignment_policy: AlignmentPolicy = Field(
+        default=AlignmentPolicy.FEATURE_SIMILARITY,
+        description="Policy for aligning model labels into canonical regime space",
+    )
+    tie_breaker: EnsembleTieBreaker = Field(
+        default=EnsembleTieBreaker.LOWEST_REGIME_ID,
+        description="Deterministic tie-breaking rule when regimes receive equal votes",
+    )
+    reference_model: str | None = Field(
+        default=None,
+        description="Model ID for canonical reference (defaults to first enabled model)",
+    )
+    explicit_mapping: dict[str, dict[int, int]] | None = Field(
+        default=None,
+        description="Manual mapping {model_id: {source_id: canonical_id}} for explicit policy",
+    )
+    feature_names: tuple[str, ...] = Field(
+        default=(),
+        description="Explicit subset of feature names to use in model training and inference",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_default_weights(cls, data: object) -> object:
+        if isinstance(data, dict):
+            if "model_weights" not in data or data["model_weights"] is None:
+                enabled = data.get("enabled_models", ("kmeans", "gmm", "hmm"))
+                data["model_weights"] = dict.fromkeys(enabled, 1.0)
+        return data
+
+    @field_validator("enabled_models")
+    @classmethod
+    def validate_enabled_models(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        if not v:
+            raise ValueError("Ensemble configuration must enable at least one model.")
+        seen: set[str] = set()
+        for m in v:
+            if not isinstance(m, str) or not m.strip():
+                raise ValueError("Model identifier must be a non-empty string.")
+            if m in seen:
+                raise ValueError(f"Duplicate model identifier in enabled_models: '{m}'.")
+            seen.add(m)
+        return v
+
+    @field_validator("model_weights")
+    @classmethod
+    def validate_weights(cls, v: dict[str, float]) -> dict[str, float]:
+        if not v:
+            raise ValueError("model_weights dictionary cannot be empty.")
+        total_weight = 0.0
+        for model_id, weight in v.items():
+            if not isinstance(model_id, str) or not model_id.strip():
+                raise ValueError("Model identifier in weights must be a non-empty string.")
+            if weight < 0.0:
+                raise ValueError(f"Model weight for '{model_id}' cannot be negative: {weight}.")
+            total_weight += weight
+        if total_weight <= 0.0:
+            raise ValueError("Total ensemble weight must be strictly greater than 0.0.")
+        return v
+
+    @field_validator("feature_names")
+    @classmethod
+    def validate_feature_names(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        for name in v:
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Feature names must be non-empty strings.")
+            if name in seen:
+                raise ValueError(f"Duplicate feature name detected in config: '{name}'.")
+            seen.add(name)
+        return v
+
+    @model_validator(mode="after")
+    def validate_ensemble_consistency(self) -> EnsembleModelConfig:
+        n_enabled = len(self.enabled_models)
+        if self.minimum_required_models > n_enabled:
+            raise ValueError(
+                f"minimum_required_models ({self.minimum_required_models}) cannot exceed "
+                f"the number of enabled models ({n_enabled})."
+            )
+        unknown_keys = set(self.model_weights.keys()) - set(self.enabled_models)
+        if unknown_keys:
+            sorted_unknown = sorted(unknown_keys)
+            raise ValueError(
+                f"model_weights contains keys not present in enabled_models: {sorted_unknown}."
+            )
+        if self.reference_model is not None and self.reference_model not in self.enabled_models:
+            raise ValueError(
+                f"reference_model '{self.reference_model}' is not in "
+                f"enabled_models {self.enabled_models}."
+            )
+        if self.alignment_policy == AlignmentPolicy.EXPLICIT_MAPPING and not self.explicit_mapping:
+            raise ValueError(
+                "explicit_mapping must be provided when alignment_policy is EXPLICIT_MAPPING."
+            )
+        return self
+
+
+class EnsembleRecord(BaseModel):
+    """
+    Point-in-time consensus regime assignment and component model predictions for an observation.
+
+    Guarantees:
+    - Zero fake confidence metrics in Commit 01.
+    - Explicit tracking of component predictions, canonical alignment, and model agreement.
+    """
+
+    model_config = {"frozen": True}
+
+    timestamp: datetime = Field(description="Observation timestamp (UTC)")
+    ensemble_regime_id: int = Field(
+        ge=0, description="Consensus canonical regime integer identifier (0..K-1)"
+    )
+    ensemble_regime_label: str = Field(
+        min_length=1, description="Canonical regime label (e.g. 'REGIME_0')"
+    )
+    model_predictions: dict[str, int] = Field(
+        description="Raw/model-level predictions per component model {model_id: source_regime_id}"
+    )
+    aligned_predictions: dict[str, int] = Field(
+        description="Aligned canonical regime predictions {model_id: canonical_regime_id}"
+    )
+
+    agreement_count: int = Field(
+        ge=1, description="Count of usable models agreeing with the consensus regime"
+    )
+    total_models: int = Field(
+        ge=1, description="Total count of usable models participating in this observation"
+    )
+    disagreeing_models: tuple[str, ...] = Field(
+        default=(), description="Identifiers of models that voted for a different regime"
+    )
+    is_unanimous: bool = Field(
+        description="True if all participating models agreed on the consensus regime"
+    )
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def require_timezone_aware(cls, v: datetime) -> datetime:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            raise ValueError(f"timestamp must be timezone-aware (got naive: {v!r}).")
+        return v
+
+
+class RegimeEnsembleResult(BaseModel):
+    """
+    Complete, deterministic output of the Regime Model Ensemble.
+
+    Guarantees:
+    - Immutable (frozen).
+    - Preserves individual model outputs and aligned predictions for explainability.
+    - Captures configuration snapshot, weights used, unavailable models, and execution metadata.
+    - Zero confidence fields (reserved for V11 Commit 02).
+    """
+
+    model_config = {"frozen": True}
+
+    model_version: str = Field(description="Ensemble implementation version")
+    algorithm: str = Field(description="Ensemble algorithm name")
+    feature_names: tuple[str, ...] = Field(description="Names of input features in column order")
+    records: tuple[EnsembleRecord, ...] = Field(
+        default=(), description="Chronologically ordered ensemble regime records"
+    )
+    models_used: tuple[str, ...] = Field(
+        description="Component models that successfully participated"
+    )
+    models_unavailable: tuple[str, ...] = Field(
+        default=(), description="Configured models that were unavailable or failed"
+    )
+    component_predictions: dict[str, tuple[int, ...]] = Field(
+        description="Full observation series of predictions per model {model_id: (p0, p1, ...)}"
+    )
+    aligned_predictions: dict[str, tuple[int, ...]] = Field(
+        description="Full observation series of aligned canonical predictions per model"
+    )
+    ensemble_regimes: tuple[int, ...] = Field(
+        description="Ordered sequence of consensus canonical regime identifiers"
+    )
+    weights_used: dict[str, float] = Field(
+        description="Normalized or active weights applied during aggregation"
+    )
+    aggregation_strategy: str = Field(description="Name of the aggregation strategy used")
+    alignment_policy: str = Field(description="Name of the alignment policy used")
+    failure_policy: str = Field(description="Name of the failure policy used")
+    computed_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC),
+        description="UTC timestamp when ensemble inference was computed",
+    )
+
+    @field_validator("computed_at", mode="before")
+    @classmethod
+    def require_timezone_aware(cls, v: datetime) -> datetime:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            raise ValueError(f"computed_at must be timezone-aware (got naive: {v!r}).")
+        return v
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self.records) == 0
+
+    @property
+    def record_count(self) -> int:
+        return len(self.records)
+
+    def get_timestamps(self) -> tuple[datetime, ...]:
+        return tuple(r.timestamp for r in self.records)
+
+    def get_regime_series(self) -> tuple[int, ...]:
+        return tuple(r.ensemble_regime_id for r in self.records)
+
+    def get_labels_series(self) -> tuple[str, ...]:
+        return tuple(r.ensemble_regime_label for r in self.records)
+
+    def get_agreement_rate(self) -> float:
+        """Overall proportion of component model votes matching the consensus across all records."""
+        if not self.records:
+            return 0.0
+        total_votes = sum(r.total_models for r in self.records)
+        agreeing_votes = sum(r.agreement_count for r in self.records)
+        return float(agreeing_votes / total_votes) if total_votes > 0 else 0.0
