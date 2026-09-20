@@ -6,16 +6,18 @@ Deterministic consensus aggregation combining aligned component model prediction
 Architectural Position:
 - ``infrastructure/ensemble/aggregation.py``
 - Implements weighted voting, majority voting, and plurality voting.
+- Computes deterministic consensus support confidence and granular explainability metrics.
 - Enforces deterministic tie-breaking rules and produces audit-ready observation records.
 
 Guarantees:
-- Determinism: identical predictions and weights always yield identical consensus.
-- Transparency: preserves component predictions, aligned predictions, and agreement metrics.
-- Zero fake confidence: discrete agreement counts only (confidence deferred to V11 Commit 02).
+- Determinism: identical predictions and weights always yield identical consensus and confidence.
+- Explainability: preserves supporting weights, agreement ratios, and disagreeing models.
+- Support-based confidence: strictly reflects model consensus agreement, not future returns.
 """
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import datetime
@@ -23,6 +25,7 @@ from datetime import datetime
 from app.modules.regime_detection.domain.errors import EnsembleExecutionError
 from app.modules.regime_detection.domain.models import (
     AggregationStrategy,
+    EnsembleConfidence,
     EnsembleModelConfig,
     EnsembleRecord,
     EnsembleTieBreaker,
@@ -31,7 +34,8 @@ from app.modules.regime_detection.domain.models import (
 
 class EnsembleAggregator:
     """
-    Deterministic aggregator for combining aligned model predictions into a consensus regime.
+    Deterministic aggregator for combining aligned model predictions into a consensus regime
+    and computing consensus support confidence scores.
     """
 
     @classmethod
@@ -44,7 +48,7 @@ class EnsembleAggregator:
         config: EnsembleModelConfig,
     ) -> tuple[tuple[int, ...], tuple[EnsembleRecord, ...]]:
         """
-        Aggregate aligned model predictions into consensus canonical regimes.
+        Aggregate aligned model predictions into consensus canonical regimes with confidence.
 
         Args:
             timestamps: Observation timestamps in chronological order.
@@ -57,7 +61,8 @@ class EnsembleAggregator:
             Tuple of (consensus_regime_ids, ensemble_records).
 
         Raises:
-            EnsembleExecutionError: If dimensional inconsistency or aggregation error occurs.
+            EnsembleExecutionError: If dimensional inconsistency, non-positive weight,
+                or invalid calculation occurs.
         """
         n_samples = len(timestamps)
         participating_models = [m for m in config.enabled_models if m in aligned_predictions]
@@ -77,6 +82,25 @@ class EnsembleAggregator:
         strategy = config.aggregation_strategy
         tie_breaker = config.tie_breaker
 
+        # Calculate active model weights and total active weight strictly over participating models
+        active_model_weights: dict[str, float] = {}
+        total_active_weight = 0.0
+        for model_id in participating_models:
+            if strategy == AggregationStrategy.WEIGHTED_VOTING:
+                w = weights.get(model_id, 1.0)
+            else:
+                w = 1.0
+
+            if math.isnan(w) or math.isinf(w) or w < 0.0:
+                raise EnsembleExecutionError(f"Invalid active weight for model '{model_id}': {w}.")
+            active_model_weights[model_id] = float(w)
+            total_active_weight += float(w)
+
+        if total_active_weight <= 0.0:
+            raise EnsembleExecutionError(
+                f"Total active weight must be strictly positive, got {total_active_weight}."
+            )
+
         ensemble_regimes: list[int] = []
         records: list[EnsembleRecord] = []
 
@@ -95,14 +119,8 @@ class EnsembleAggregator:
                 votes_by_model[model_id] = aligned_vote
                 raw_by_model[model_id] = raw_vote
 
-                if strategy == AggregationStrategy.WEIGHTED_VOTING:
-                    weight = weights.get(model_id, 1.0)
-                    regime_votes[aligned_vote] += weight
-                elif strategy in (
-                    AggregationStrategy.MAJORITY_VOTING,
-                    AggregationStrategy.PLURALITY_VOTING,
-                ):
-                    regime_votes[aligned_vote] += 1.0
+                w = active_model_weights[model_id]
+                regime_votes[aligned_vote] += w
 
             # Determine winner with deterministic tie-breaking
             max_vote = max(regime_votes.values())
@@ -118,7 +136,6 @@ class EnsembleAggregator:
                 if tie_breaker == EnsembleTieBreaker.LOWEST_REGIME_ID:
                     consensus_regime = min(top_candidates)
                 elif tie_breaker == EnsembleTieBreaker.MODEL_PRECEDENCE:
-                    # Pick the vote of the earliest participating model in config.enabled_models
                     chosen: int | None = None
                     for model_id in config.enabled_models:
                         if (
@@ -131,13 +148,31 @@ class EnsembleAggregator:
                 else:
                     consensus_regime = min(top_candidates)
 
-            # Calculate agreement metrics
+            # Calculate confidence score strictly as consensus support over active weight
+            supporting_weight = regime_votes[consensus_regime]
+            raw_score = float(supporting_weight / total_active_weight)
+            # Clamp to [0.0, 1.0] strictly to prevent insignificant floating-point error
+            confidence_score = max(0.0, min(1.0, raw_score))
+
+            # Calculate explainability metrics
             agreement_count = sum(1 for v in votes_by_model.values() if v == consensus_regime)
             total_models = len(participating_models)
+            agreement_ratio = float(agreement_count / total_models)
+            is_unanimous = agreement_count == total_models
             disagreeing = tuple(
                 sorted(m for m, v in votes_by_model.items() if v != consensus_regime)
             )
-            is_unanimous = agreement_count == total_models
+
+            confidence_breakdown = EnsembleConfidence(
+                score=confidence_score,
+                supporting_model_count=agreement_count,
+                active_model_count=total_models,
+                supporting_weight=supporting_weight,
+                total_active_weight=total_active_weight,
+                agreement_ratio=agreement_ratio,
+                is_unanimous=is_unanimous,
+                disagreeing_models=disagreeing,
+            )
 
             ensemble_regimes.append(consensus_regime)
             records.append(
@@ -151,6 +186,8 @@ class EnsembleAggregator:
                     total_models=total_models,
                     disagreeing_models=disagreeing,
                     is_unanimous=is_unanimous,
+                    confidence=confidence_score,
+                    confidence_breakdown=confidence_breakdown,
                 )
             )
 

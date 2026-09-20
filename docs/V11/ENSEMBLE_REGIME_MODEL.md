@@ -2,7 +2,7 @@
 
 **RegimeX — Open-Source Market Intelligence Platform**  
 **Volume:** V11 — Ensemble Regime Engine  
-**Document Status:** Authoritative Technical Specification (V11 Commit 01)
+**Document Status:** Authoritative Technical Specification (V11 Commit 02 — Final)
 
 ---
 
@@ -13,7 +13,7 @@ Financial market regimes exhibit multi-faceted behavior that spans multiple stat
 2. **Generative Density Mixtures (GMM, V10)**: Models observations as convex combinations of multivariate Gaussian densities with Bayesian posterior probabilities.
 3. **Temporal Markov Chains (Gaussian HMM, V10)**: Encodes state transition matrices and state persistence across sequential time series.
 
-Relying on any single paradigm exposes quantitative strategies to algorithm-specific biases and failure modes. Volume 11 Commit 01 introduces the **Regime Model Ensemble** (`RegimeModelEnsemble`), a production-grade orchestration engine that aligns heterogeneous model regimes into a canonical coordinate space and aggregates their predictions via deterministic consensus voting.
+Relying on any single paradigm exposes quantitative strategies to algorithm-specific biases and failure modes. Volume 11 introduces the **Regime Model Ensemble** (`RegimeModelEnsemble`), a production-grade orchestration engine that aligns heterogeneous model regimes into a canonical coordinate space and aggregates their predictions via deterministic consensus voting with interpretable confidence scoring.
 
 ```text
 Feature Matrix X
@@ -32,7 +32,7 @@ Feature Matrix X
                                                     Ensemble Aggregator
                                                              │
                                                              ▼
-                                                 Consensus Regime y*
+                                            Consensus Regime y* + Confidence
 ```
 
 ---
@@ -101,21 +101,54 @@ If $|\mathcal{M}_{\text{avail}}| < \text{minimum\_required\_models}$, the ensemb
 
 ---
 
-## 5. Scope & Future Roadmap
+## 5. Ensemble Confidence Scoring & Support Quantification
+
+### 5.1 Confidence Semantics
+Ensemble confidence explicitly measures **model agreement and active ensemble support** for the consensus regime:
+
+$$\text{confidence} = \frac{\sum_{m \in \mathcal{M}_{\text{active}}, \hat{y}_m = y^*} w_m}{\sum_{m \in \mathcal{M}_{\text{active}}} w_m}$$
+
+Where:
+- For unanimous agreement ($\hat{y}_m = y^*$ for all $m$), $\text{confidence} = 1.0$.
+- In a two-model 50/50 tie, if the tie-breaker picks regime 0, $\text{confidence} = 0.50$.
+- Bounded strictly within $[0.0, 1.0]$.
+- Denominator strictly includes only active, participating models; unavailable models are never included.
+
+### 5.2 Structured Explainability Components
+The ensemble output records detailed explainability data via `EnsembleConfidence`:
+- `score`: Active weighted support fraction ($0.0 \le s \le 1.0$).
+- `supporting_model_count`: Integer count of models agreeing with consensus.
+- `active_model_count`: Total active models participating in the observation.
+- `supporting_weight`: Sum of active weights casting votes for consensus.
+- `total_active_weight`: Total active weight across participating models.
+- `agreement_ratio`: Unweighted fraction $\frac{\text{supporting\_model\_count}}{\text{active\_model\_count}}$.
+- `is_unanimous`: Boolean flag indicating 100% active model agreement.
+- `disagreeing_models`: Tuple of model identifiers that voted for alternative regimes.
+
+### 5.3 Continuous Support Probability Distribution
+The `predict_proba()` method returns continuous support probability vectors across all $K$ canonical regimes:
+$$P(k) = \frac{W_k}{W_{\text{total}}}$$
+Where $\sum_{k=0}^{K-1} P(k) = 1.0 \pm 10^{-6}$ and $P(y^*) = \text{confidence}$.
+
+### 5.4 Essential Non-Interpretations & Boundary Guarantees
+```text
+Ensemble Confidence ≠ Prediction Probability ≠ Market Return Probability ≠ Trading Recommendation
+```
+- **Not Statistical Ground Truth**: Quantifies internal model consensus, not market reality.
+- **Not Forward Returns**: High agreement between models does not imply market profitability.
+- **Strict Boundary**: Platform transition matrices and duration analytics belong exclusively to Volume 12.
+
+---
+
+## 6. Scope & Architecture Roadmap
 
 ```text
-V11 Commit 01: Regime Model Ensemble Orchestration & Consensus (CURRENT)
-    ├── Multi-model execution (KMeans, GMM, HMM)
-    ├── Canonical regime identity alignment
-    ├── Deterministic weighted voting consensus
-    └── Transparent explainability & provenance records
+Volume 11 (COMPLETE)
+    ├── Commit 01: Regime Model Ensemble Orchestration & Multi-Model Consensus (DONE)
+    └── Commit 02: Ensemble Confidence Scoring & Structured Explainability (DONE)
 
-V11 Commit 02: Confidence Scoring & Uncertainty Calibration (NEXT)
-    ├── Multi-model Bayesian posterior combination
-    ├── Entropy-based ensemble agreement metrics
-    └── Continuous regime confidence scoring
-
-Volume 12: Transition Analytics & Markov Chains (FUTURE)
-    ├── Empirical transition probability matrices
-    └── Regime persistence and duration forecasting
+Volume 12 (NEXT)
+    ├── Empirical Regime Transition Analytics
+    ├── Transition Probability Matrices (TPM)
+    └── Regime Persistence, Duration, and Switching Dynamics
 ```

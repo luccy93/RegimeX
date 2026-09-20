@@ -19,6 +19,7 @@ Guarantees:
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from app.modules.regime_detection.domain.errors import (
@@ -62,7 +63,7 @@ class RegimeModelEnsemble(RegimeDetector):
     def __init__(
         self,
         config: EnsembleModelConfig | None = None,
-        models: dict[str, RegimeDetector] | None = None,
+        models: Mapping[str, RegimeDetector] | None = None,
     ) -> None:
         """
         Initialize the regime model ensemble.
@@ -251,20 +252,57 @@ class RegimeModelEnsemble(RegimeDetector):
         feature_matrix: FeatureMatrix,
     ) -> tuple[tuple[float, ...], ...] | None:
         """
-        Probabilistic confidence vectors across all canonical regimes.
+        Compute continuous consensus support probability vectors across all K canonical regimes.
 
-        Notice: Continuous confidence scoring belongs exclusively to V11 Commit 02.
-        For V11 Commit 01, this method explicitly returns None in accordance with the
-        RegimeDetector interface contract.
+        Guarantees:
+        - Pure consensus support distribution: P(k) = W_k / W_total.
+        - Each observation vector sums to 1.0 within floating-point tolerance (1e-6).
+        - Point-in-time calculation with zero future leakage.
+        - Supports downstream consumers requiring continuous probabilistic distributions.
+
+        Raises:
+            ModelNotFittedError: If ensemble has not been fitted.
+            InvalidFeatureMatrixError: If feature matrix columns do not match fitted columns.
         """
         if self._state != ModelState.FITTED:
             raise ModelNotFittedError(model_name=self._config.model_name)
-        return None
+
+        result = self.predict_ensemble(feature_matrix)
+        if not result.records:
+            return ()
+
+        # Determine canonical regime space size K
+        n_clusters = self._fit_result.n_clusters if self._fit_result else 4
+        max_aligned = (
+            max(max(preds) for preds in result.aligned_predictions.values() if preds)
+            if result.aligned_predictions
+            else 0
+        )
+        k_regimes = max(n_clusters, max_aligned + 1)
+
+        weights = result.weights_used
+        prob_matrix: list[tuple[float, ...]] = []
+
+        for record in result.records:
+            row_weights = [0.0] * k_regimes
+            for model_id, aligned_regime in record.aligned_predictions.items():
+                w = weights.get(model_id, 1.0)
+                if 0 <= aligned_regime < k_regimes:
+                    row_weights[aligned_regime] += w
+
+            total_w = sum(row_weights)
+            if total_w > 0.0:
+                row_probs = tuple(float(w / total_w) for w in row_weights)
+            else:
+                row_probs = tuple(1.0 / k_regimes for _ in range(k_regimes))
+            prob_matrix.append(row_probs)
+
+        return tuple(prob_matrix)
 
     def predict_ensemble(self, feature_matrix: FeatureMatrix) -> RegimeEnsembleResult:
         """
         Execute ensemble inference producing full auditability output with component
-        predictions, canonical alignment, and agreement metrics.
+        predictions, canonical alignment, agreement metrics, and confidence scoring.
 
         Args:
             feature_matrix: Feature matrix to classify.
@@ -335,7 +373,7 @@ class RegimeModelEnsemble(RegimeDetector):
             alignment_maps=self._alignment_maps,
         )
 
-        # Aggregate aligned predictions
+        # Aggregate aligned predictions and compute confidence scores
         consensus_regimes, records = EnsembleAggregator.aggregate(
             timestamps=feature_matrix.timestamps,
             component_predictions=component_predictions,
@@ -343,6 +381,8 @@ class RegimeModelEnsemble(RegimeDetector):
             weights=active_weights,
             config=self._config,
         )
+
+        confidence_scores = tuple(r.confidence for r in records)
 
         return RegimeEnsembleResult(
             model_version=self.ALGORITHM_VERSION,
@@ -358,6 +398,7 @@ class RegimeModelEnsemble(RegimeDetector):
             aggregation_strategy=str(self._config.aggregation_strategy),
             alignment_policy=str(self._config.alignment_policy),
             failure_policy=str(self._config.failure_policy),
+            confidence_scores=confidence_scores,
         )
 
     def get_params(self) -> dict[str, Any]:
@@ -384,17 +425,19 @@ class RegimeModelEnsemble(RegimeDetector):
             description=(
                 "Multi-model regime ensemble combining KMeans geometric clustering, "
                 "Gaussian Mixture Model density estimation, and Hidden Markov Model "
-                "temporal dynamics into a unified consensus regime."
+                "temporal dynamics into a unified consensus regime with confidence scoring."
             ),
             assumptions=(
                 "Component models capture complementary geometric, density, and temporal views.",
                 "Observations are aligned in chronological order across all models.",
                 "Cluster profiles provide a reliable basis for canonical identity alignment.",
+                "Model confidence reflects consensus support, not future return probability.",
             ),
             known_limitations=(
-                "Continuous posterior confidence scoring is deferred to Volume 11 Commit 02.",
+                "Confidence score reflects model agreement, not future returns or certainty.",
                 "Consensus quality depends on the diversity and calibration of component models.",
-                "Extreme disruptions outside training data may yield model disagreement.",
+                "Extreme market disruptions outside training data may yield model disagreement.",
+                "Transition analytics and regime switching probabilities belong to Volume 12.",
             ),
             hyperparameters=self.get_params(),
         )

@@ -28,12 +28,12 @@ V10 Gaussian HMM (Temporal Dynamics) ────────┘
 | Commit | Scope | Status | Official Commit Message |
 | :--- | :--- | :---: | :--- |
 | **Commit 01** | **Regime Model Ensemble (Orchestration & Consensus)** | **COMPLETE** | `feat(ml): implement regime model ensemble` |
-| **Commit 02** | **Ensemble Confidence Scoring & Calibration** | **PLANNED** | `feat(ml): add ensemble confidence scoring` |
+| **Commit 02** | **Ensemble Confidence Scoring & Explainability** | **COMPLETE** | `feat(ml): add ensemble confidence scoring` |
 
 > [!IMPORTANT]
 > **Strict Architectural Scope Boundaries:**
 > - **V11 Commit 01**: Multi-model execution, canonical regime alignment, deterministic weighted consensus voting, agreement tracking, and model failure policies.
-> - **V11 Commit 02**: Multi-model posterior probability calibration, entropy-based confidence scoring, and continuous uncertainty estimation.
+> - **V11 Commit 02**: Deterministic consensus support confidence scoring, granular explainability metrics, and continuous support distribution via `predict_proba()`.
 > - **Volume 12**: Platform transition analytics, transition probability matrices, and regime persistence forecasting.
 
 ---
@@ -67,19 +67,65 @@ V10 Gaussian HMM (Temporal Dynamics) ────────┘
   - `RegimeModelEnsemble`: Implements the `RegimeDetector` domain protocol.
   - Complete lifecycle: `UNFITTED` $\to$ `FITTED`.
   - Strict anti-leakage: fits component models strictly on in-sample training data; inference executes with frozen parameters.
-  - Contract guard: `predict_proba()` explicitly returns `None` (confidence scoring deferred to Commit 02).
   - Robust failure policies: `FAIL_FAST`, `SKIP_UNAVAILABLE`, and `BEST_EFFORT`.
-
-- **Comprehensive Test Suite (`tests/unit/regime_detection/test_ensemble.py`)**:
-  - 42 targeted unit and integration tests verifying configuration constraints, label permutation alignment, weighted voting overrides, tie resolutions, model failure handling, non-confidence guarantees, and multi-model end-to-end consensus.
 
 ---
 
-## 4. Key Architectural Concepts
+## 4. Volume 11 Commit 02 Summary — Ensemble Confidence Scoring
 
-### Why Raw Model Labels Cannot Be Compared Directly
-Raw cluster labels produced by unsupervised models are arbitrary permutations. Even when models are trained on the same data, differences in objective functions (e.g. geometric SSE vs. Gaussian log-likelihood vs. Baum-Welch temporal likelihood) can alter internal numbering. Direct comparison of raw indices (`KMeans 0 == GMM 0`) is mathematically invalid. The `RegimeAlignmentEngine` deterministically maps all models into a shared canonical regime space prior to aggregation.
+### Core Deliverables
 
-### Distinction Between Consensus and Confidence
-- **Consensus (Commit 01)**: The discrete agreement or disagreement of participating models on the canonical state assignment $\hat{y}_t^* \in \{0, \dots, K-1\}$. Represented via integer vote counts and model agreement flags.
-- **Confidence (Commit 02)**: The calibrated posterior probability distribution $P(Y_t = k \mid \mathcal{M}, X)$ quantifying epistemic and aleatoric uncertainty.
+- **Confidence Domain Model (`domain/models.py`)**:
+  - `EnsembleConfidence`: Frozen, validated model exposing structured explainable metrics:
+    - `score: float`: Bounded $0.0 \le \text{score} \le 1.0$.
+    - `supporting_model_count: int`: Number of active models voting for consensus.
+    - `active_model_count: int`: Total number of active models participating.
+    - `supporting_weight: float`: Active weight sum voting for the consensus regime.
+    - `total_active_weight: float`: Total weight sum across all active models.
+    - `agreement_ratio: float`: Proportion of active models voting for consensus.
+    - `is_unanimous: bool`: Flag indicating 100% active model agreement.
+    - `disagreeing_models: tuple[str, ...]`: Identifiers of dissenting active models.
+  - `EnsembleRecord`: Extended with `confidence: float` and `confidence_breakdown: EnsembleConfidence`.
+  - `RegimeEnsembleResult`: Extended with `confidence_scores: tuple[float, ...]`, `get_confidence_series()`, `get_average_confidence()`, and `get_confidence_records()`.
+
+- **Confidence Mathematical Formulation (`infrastructure/ensemble/aggregation.py`)**:
+  - **Weighted Voting Formula**:
+    $$\text{confidence} = \frac{\sum_{m \in \mathcal{M}_{\text{active}}, \hat{y}_m = y^*} w_m}{\sum_{m \in \mathcal{M}_{\text{active}}} w_m}$$
+  - **Unweighted / Equal Weights Formula**:
+    $$\text{confidence} = \frac{|\{m \in \mathcal{M}_{\text{active}} : \hat{y}_m = y^*\}|}{|\mathcal{M}_{\text{active}}|}$$
+  - **Deterministic Tie Behavior**:
+    When two regimes tie with equal support (e.g. 50% vs 50%), the deterministic tie-breaker selects one regime, but confidence remains strictly un-inflated:
+    $$\text{confidence} = 0.50$$
+  - **Unavailable-Model Handling**:
+    Under `SKIP_UNAVAILABLE` or `BEST_EFFORT`, unavailable models are excluded from both numerator and denominator. The denominator is strictly $\sum_{m \in \mathcal{M}_{\text{active}}} w_m$.
+
+- **Continuous Support Distribution via `predict_proba()` (`infrastructure/models/ensemble.py`)**:
+  - Computes continuous support distribution vector across all $K$ canonical regimes:
+    $$P(k) = \frac{W_k}{W_{\text{total}}}$$
+  - Guarantees each row sums to $1.0 \pm 10^{-6}$ and row elements are in $[0.0, 1.0]$.
+  - For the consensus regime $y^*$, $P(y^*) = \text{confidence}$.
+
+---
+
+## 5. Confidence Interpretation & Critical Boundaries
+
+> [!CAUTION]
+> **What Ensemble Confidence Is NOT:**
+> - **NOT Prediction Probability**: It does not represent the Bayesian likelihood of market states.
+> - **NOT Return Probability**: It does not forecast positive asset returns or favorable performance.
+> - **NOT Trading Signals**: It does not constitute a buy, sell, or hedge recommendation.
+> - **NOT Ground Truth Certainty**: It measures internal model consensus agreement, not external truth.
+
+```text
+Ensemble Confidence ≠ Prediction Probability ≠ Market Return Probability ≠ Trading Recommendation
+```
+
+### Architectural Volume Boundaries
+
+```text
+V11 Commit 01 ──> Ensemble Orchestration & Multi-Model Consensus Voting
+V11 Commit 02 ──> Ensemble Consensus Support Confidence & Explainability
+Volume 12     ──> Platform Regime Transition Analytics & Markov Chains
+```
+
+**Volume 11 is now COMPLETE.**

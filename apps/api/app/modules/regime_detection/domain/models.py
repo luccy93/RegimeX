@@ -805,12 +805,90 @@ class EnsembleModelConfig(BaseModel):
         return self
 
 
-class EnsembleRecord(BaseModel):
+class EnsembleConfidence(BaseModel):
     """
-    Point-in-time consensus regime assignment and component model predictions for an observation.
+    Deterministic, explainable confidence breakdown for an ensemble regime assignment.
 
     Guarantees:
-    - Zero fake confidence metrics in Commit 01.
+    - Quantifies model consensus support: fraction of active weight backing consensus regime.
+    - Zero future leakage: derived strictly from contemporaneous component model predictions.
+    - Preserves granular explainability metrics (supporting counts, weights, ratios, disagreeing).
+    - Immutable (frozen).
+    """
+
+    model_config = {"frozen": True}
+
+    score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Ensemble confidence score: supporting_weight / total_active_weight",
+    )
+    supporting_model_count: int = Field(
+        ge=1,
+        description="Number of active models supporting the selected consensus regime",
+    )
+    active_model_count: int = Field(
+        ge=1,
+        description="Total number of active component models participating in inference",
+    )
+    supporting_weight: float = Field(
+        ge=0.0,
+        description="Sum of active model weights voting for the selected consensus regime",
+    )
+    total_active_weight: float = Field(
+        gt=0.0,
+        description="Sum of active model weights across all participating models",
+    )
+    agreement_ratio: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Unweighted model agreement ratio: supporting_model_count / active_model_count",
+    )
+    is_unanimous: bool = Field(
+        description="True if all active models agreed on the selected consensus regime",
+    )
+    disagreeing_models: tuple[str, ...] = Field(
+        default=(),
+        description="Identifiers of active models that voted for a different regime",
+    )
+
+    @property
+    def confidence(self) -> float:
+        """Alias for score."""
+        return self.score
+
+    @property
+    def unanimous(self) -> bool:
+        """Alias for is_unanimous."""
+        return self.is_unanimous
+
+    @model_validator(mode="after")
+    def validate_confidence_invariants(self) -> EnsembleConfidence:
+        if self.supporting_model_count > self.active_model_count:
+            raise ValueError(
+                f"supporting_model_count ({self.supporting_model_count}) cannot exceed "
+                f"active_model_count ({self.active_model_count})."
+            )
+        if self.supporting_weight > self.total_active_weight + 1e-9:
+            raise ValueError(
+                f"supporting_weight ({self.supporting_weight}) cannot exceed "
+                f"total_active_weight ({self.total_active_weight})."
+            )
+        expected_ratio = float(self.supporting_model_count / self.active_model_count)
+        if abs(self.agreement_ratio - expected_ratio) > 1e-6:
+            raise ValueError(
+                f"agreement_ratio ({self.agreement_ratio}) must match "
+                f"supporting_model_count / active_model_count ({expected_ratio})."
+            )
+        return self
+
+
+class EnsembleRecord(BaseModel):
+    """
+    Point-in-time consensus regime assignment, confidence breakdown, and component predictions.
+
+    Guarantees:
+    - Deterministic, point-in-time confidence score representing consensus agreement support.
     - Explicit tracking of component predictions, canonical alignment, and model agreement.
     """
 
@@ -842,6 +920,14 @@ class EnsembleRecord(BaseModel):
     is_unanimous: bool = Field(
         description="True if all participating models agreed on the consensus regime"
     )
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Ensemble confidence score (support for consensus regime)",
+    )
+    confidence_breakdown: EnsembleConfidence = Field(
+        description="Structured explainable confidence components for this observation",
+    )
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -859,7 +945,7 @@ class RegimeEnsembleResult(BaseModel):
     - Immutable (frozen).
     - Preserves individual model outputs and aligned predictions for explainability.
     - Captures configuration snapshot, weights used, unavailable models, and execution metadata.
-    - Zero confidence fields (reserved for V11 Commit 02).
+    - Exposes deterministic confidence scores and explainability records.
     """
 
     model_config = {"frozen": True}
@@ -891,6 +977,10 @@ class RegimeEnsembleResult(BaseModel):
     aggregation_strategy: str = Field(description="Name of the aggregation strategy used")
     alignment_policy: str = Field(description="Name of the alignment policy used")
     failure_policy: str = Field(description="Name of the failure policy used")
+    confidence_scores: tuple[float, ...] = Field(
+        default=(),
+        description="Chronological series of point-in-time consensus confidence scores",
+    )
     computed_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=UTC),
         description="UTC timestamp when ensemble inference was computed",
@@ -919,6 +1009,23 @@ class RegimeEnsembleResult(BaseModel):
 
     def get_labels_series(self) -> tuple[str, ...]:
         return tuple(r.ensemble_regime_label for r in self.records)
+
+    def get_confidence_series(self) -> tuple[float, ...]:
+        """Extract ordered sequence of point-in-time confidence scores."""
+        if self.confidence_scores:
+            return self.confidence_scores
+        return tuple(r.confidence for r in self.records)
+
+    def get_average_confidence(self) -> float:
+        """Calculate mean ensemble confidence across all observations."""
+        series = self.get_confidence_series()
+        if not series:
+            return 0.0
+        return float(sum(series) / len(series))
+
+    def get_confidence_records(self) -> tuple[EnsembleConfidence, ...]:
+        """Extract ordered sequence of granular confidence breakdown objects."""
+        return tuple(r.confidence_breakdown for r in self.records)
 
     def get_agreement_rate(self) -> float:
         """Overall proportion of component model votes matching the consensus across all records."""

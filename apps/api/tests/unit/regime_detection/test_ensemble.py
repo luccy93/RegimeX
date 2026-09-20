@@ -621,29 +621,39 @@ class TestEnsembleAvailabilityAndFailure:
 
 
 class TestEnsembleOutputContract:
-    def test_predict_proba_returns_none(self) -> None:
-        """Strict V11 Commit 01 contract: predict_proba() MUST return None."""
+    def test_predict_proba_returns_normalized_support_distribution(self) -> None:
+        """V11 Commit 02 contract: predict_proba() returns support vectors summing to 1.0."""
         matrix = _make_separable_three_cluster_matrix()
         m1 = MockRegimeDetector(algorithm_id="m1")
         config = EnsembleModelConfig(enabled_models=("m1",), minimum_required_models=1)
         ensemble = RegimeModelEnsemble(config=config, models={"m1": m1}).fit(matrix)
 
         proba = ensemble.predict_proba(matrix)
-        assert proba is None
+        assert proba is not None
+        assert len(proba) == matrix.sample_count
+        for row in proba:
+            assert abs(sum(row) - 1.0) < 1e-6
+            for val in row:
+                assert 0.0 <= val <= 1.0
 
-    def test_output_contains_no_confidence_fields(self) -> None:
-        """Ensures no confidence attribute is present in records or result."""
+    def test_output_contains_validated_confidence_fields(self) -> None:
+        """Ensures confidence fields and breakdown records are present and valid."""
         matrix = _make_separable_three_cluster_matrix()
         m1 = MockRegimeDetector(algorithm_id="m1")
         config = EnsembleModelConfig(enabled_models=("m1",), minimum_required_models=1)
         ensemble = RegimeModelEnsemble(config=config, models={"m1": m1}).fit(matrix)
         result = ensemble.predict_ensemble(matrix)
 
-        assert not hasattr(result, "confidence")
-        assert not hasattr(result, "confidence_score")
+        assert hasattr(result, "confidence_scores")
+        assert len(result.confidence_scores) == matrix.sample_count
+        assert len(result.get_confidence_series()) == matrix.sample_count
+        assert 0.0 <= result.get_average_confidence() <= 1.0
+
         for record in result.records:
-            assert not hasattr(record, "confidence")
-            assert not hasattr(record, "confidence_score")
+            assert hasattr(record, "confidence")
+            assert hasattr(record, "confidence_breakdown")
+            assert 0.0 <= record.confidence <= 1.0
+            assert record.confidence_breakdown.score == record.confidence
 
     def test_provenance_and_predictions_preserved(self) -> None:
         matrix = _make_separable_three_cluster_matrix()
