@@ -128,3 +128,40 @@ To maintain clean architectural boundaries and eliminate code duplication, `Back
 - `to_price_series()`: Generates a validated `PriceSeries` from the chronological equity curve.
 - `to_return_series(return_type)`: Generates a validated `ReturnSeries` using `PortfolioRiskEngine.compute_arithmetic_returns` or `compute_log_returns`.
 - `compute_risk_metrics()`: Invokes `PortfolioRiskEngine.analyze_risk()` on the equity series to calculate realized volatility, peak-to-trough drawdown, Historical VaR ($90\%, 95\%, 99\%$), and Expected Shortfall.
+
+---
+
+## 8. Validation Suite & Integrity Verification
+
+The backtesting engine is hardened with an exhaustive validation suite (`apps/api/tests/unit/backtesting/`):
+
+1. **Lookahead Protection (`test_lookahead_protection.py`)**:
+   - Validates that strategies receive only historical data slices strictly $\le T_t$.
+   - Confirms that adversarial attempts to inspect future slices, mutate history buffers, or alter past events raise exceptions or fail harmlessly.
+   - Proves future independence: extreme market movements (e.g. 90% crashes or 1,000% rallies) after step $t$ do not alter trades, fills, or positions at or before $t$.
+
+2. **Execution Timing Correctness (`test_execution_timing.py`)**:
+   - `CURRENT_CLOSE`: Verified to fill at the exact bar close.
+   - `NEXT_OPEN`: Verified to queue orders at $T_t$ and fill at $T_{t+1}$ open price.
+   - End-of-series isolation: Orders placed on the final bar under `NEXT_OPEN` are safely retained in pending state without corrupting cash balances.
+
+3. **Transaction Costs & Monotonicity (`test_transaction_costs.py`)**:
+   - Monotonicity: Higher slippage rates strictly decrease net ending equity under identical trading sequences.
+   - Commission scaling: Commission fees scale proportionally with executed principal and are deducted from available cash.
+
+4. **Accounting Invariants (`test_accounting_invariants.py`)**:
+   - Dynamic cost basis: Proves correct weighted-average cost basis across multiple sequential purchases.
+   - Partial sell accounting: Proves correct realized PnL recognition on fractional position liquidation.
+   - Long-only enforcement: Rejects oversell attempts with `InsufficientPositionError`.
+   - Cash protection: Rejects purchases exceeding available cash with `InsufficientFundsError`.
+   - Conservation equation: $\text{equity} = \text{cash} + \text{market\_value} = \text{initial\_cash} + \text{realized\_pnl} + \text{unrealized\_pnl} - \text{fees}$ holds at all snapshots.
+
+5. **Deterministic Replay (`test_determinism.py`)**:
+   - Identical inputs and seeds produce bit-for-bit identical outputs across orders, fills, positions, cash, fees, equity curves, and risk metrics.
+
+6. **Input Validation (`test_input_validation.py`)**:
+   - Rejects non-chronological events, duplicate timestamps, naive datetimes, non-positive prices, NaNs, infinities, and unobserved symbol orders.
+
+7. **V13 Risk Engine Integration (`test_v13_integration.py`)**:
+   - Verifies end-to-end delegation to `PortfolioRiskEngine.analyze_risk()`.
+   - Enforces mathematical risk invariants: $\text{volatility} \ge 0$, $\text{max\_drawdown} \in [0, 1]$, and $\text{ES}_\alpha \ge \text{VaR}_\alpha$.

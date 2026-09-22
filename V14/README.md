@@ -31,7 +31,7 @@ Portfolio Risk Engine (V13 Integration)
 | Commit | Type | Description | Status |
 | :---: | :---: | :--- | :---: |
 | **01** | `feat` | `feat(backtest): implement event-driven backtesting engine` | **DONE** |
-| **02** | `feat` | `feat(backtest): add strategy comparison analytics` | Pending |
+| **02** | `test` | `test(backtest): add leakage and execution integrity tests` | **DONE** |
 
 ---
 
@@ -70,9 +70,45 @@ Portfolio Risk Engine (V13 Integration)
 
 ---
 
-## 4. Architectural Boundaries
+## 4. Commit 02 Implementation Details (Validation & Integrity Suite)
+
+### 4.1 Anti-Lookahead & Adversarial Strategy Verification (`test_lookahead_protection.py`)
+- Verified that strategies receive only historical slices $\le T_t$.
+- Tested adversarial strategies attempting to peek into future timestamps, future regime history, or mutate historical buffers.
+- Proved mathematical independence from future market anomalies: injecting a 90% market crash or 1,000% rally at $T > t$ yields bit-for-bit identical portfolio state and orders at $\tau \le t$.
+
+### 4.2 Execution Timing Rigor (`test_execution_timing.py`)
+- Verified `CURRENT_CLOSE` execution matches the exact bar close.
+- Verified `NEXT_OPEN` queues orders and executes at the next bar's open price.
+- Verified that orders placed on the final bar under `NEXT_OPEN` safely remain pending without phantom fills or balance corruption.
+
+### 4.3 Transaction Costs & Slippage Monotonicity (`test_transaction_costs.py`)
+- Verified strict monotonicity: higher slippage monotonically degrades net equity across identical trading sequences.
+- Verified proportional commission scaling and exact fee deduction from cash.
+- Validated rejection of negative slippage or commission rates.
+
+### 4.4 Portfolio Accounting Invariants (`test_accounting_invariants.py`)
+- Verified dynamic weighted-average cost basis across multiple sequential buys.
+- Verified step-by-step partial sells, realized PnL accounting, and position reduction down to zero.
+- Enforced rejection of oversells (`InsufficientPositionError`) and insufficient funds (`InsufficientFundsError`).
+- Verified conservation equation holds continuously: $\text{equity} = \text{cash} + \text{market\_value} = \text{initial\_cash} + \text{realized\_pnl} + \text{unrealized\_pnl} - \text{fees}$.
+
+### 4.5 Determinism & Replay Integrity (`test_determinism.py`)
+- Proved 100% bit-for-bit identical outputs across multiple runs on multi-asset market data.
+
+### 4.6 Input Validation & Edge Case Handling (`test_input_validation.py`)
+- Enforced rejection of non-chronological events, duplicate timestamps, naive datetimes, non-positive prices, NaN/Inf, non-positive order quantities, and unobserved symbol orders.
+
+### 4.7 V13 Portfolio Risk Engine Integration (`test_v13_integration.py`)
+- Verified seamless equity curve conversion to `PriceSeries` and `ReturnSeries`.
+- Validated risk metric correctness: non-negative volatility, bounded drawdowns in $[0, 1]$, and tail risk ordering $\text{CVaR}_\alpha \ge \text{VaR}_\alpha$.
+
+---
+
+## 5. Architectural Boundaries
 
 - **Zero Prohibited Imports**: Backtesting is pure Python/NumPy, with zero imports from FastAPI, database ORMs, external broker APIs, or machine learning frameworks.
 - **Strict Scope Boundaries**:
-  - No Sharpe/Sortino comparison or strategy ranking in Commit 01 (reserved for Commit 02).
-  - No live trading, broker integrations, order routing, or AI explanations.
+  - Event-driven backtesting execution and validation only.
+  - Zero live trading, broker integrations, order routing, or AI explanations.
+- **Volume 14 Status**: Complete (2/2 commits delivered and validated).

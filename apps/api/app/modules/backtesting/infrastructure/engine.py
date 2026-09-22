@@ -301,8 +301,12 @@ class EventDrivenBacktestEngine(BacktestEngineProtocol):
                     else:
                         pending_orders.append((order, step_ts))
 
-            # 4. Record chronological equity snapshot
-            portfolio.record_snapshot(timestamp=step_ts, current_prices=current_prices)
+            # 4. Record chronological equity snapshot if last event for this timestamp
+            is_last_for_timestamp = (
+                step_idx == len(events) - 1 or events[step_idx + 1].timestamp != step_ts
+            )
+            if is_last_for_timestamp:
+                portfolio.record_snapshot(timestamp=step_ts, current_prices=current_prices)
 
         return BacktestResult(
             start_timestamp=events[0].timestamp,

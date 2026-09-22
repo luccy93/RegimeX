@@ -408,6 +408,7 @@ class BacktestResult(BaseModel):
     def compute_risk_metrics(
         self,
         risk_engine: PortfolioRiskEngineProtocol | None = None,
+        periods_per_year: float | None = None,
     ) -> PortfolioRiskResult:
         """
         Evaluate full portfolio risk analytics on the backtest equity curve
@@ -419,5 +420,6 @@ class BacktestResult(BaseModel):
         price_series = self.to_price_series()
         return engine.analyze_risk(
             data=price_series,
+            periods_per_year=periods_per_year,
             series_id="backtest_portfolio",
         )
