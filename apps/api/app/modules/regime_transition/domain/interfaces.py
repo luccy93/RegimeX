@@ -19,7 +19,10 @@ if TYPE_CHECKING:
         RegimeEnsembleResult,
     )
     from app.modules.regime_intelligence.domain.models import RegimeAssignment
-    from app.modules.regime_transition.domain.models import RegimeTransitionResult
+    from app.modules.regime_transition.domain.models import (
+        RegimeTransitionResult,
+        TransitionAnalyticsResult,
+    )
 
 
 @runtime_checkable
@@ -92,4 +95,59 @@ class RegimeTransitionEngineProtocol(Protocol):
             regimes: Optional explicit tuple of canonical regime IDs.
             n_regimes: Optional cardinality K (0..K-1).
         """
+        ...
+
+
+@runtime_checkable
+class RegimeTransitionAnalyticsProtocol(Protocol):
+    """Protocol for computing downstream transition analytics and behavioral statistics."""
+
+    def analyze(
+        self,
+        result: RegimeTransitionResult,
+    ) -> TransitionAnalyticsResult:
+        """
+        Generate comprehensive transition analytics from an existing RegimeTransitionResult.
+
+        Args:
+            result: Strongly typed RegimeTransitionResult from Commit 01.
+        """
+        ...
+
+    def analyze_from_assignments(
+        self,
+        assignments: Sequence[RegimeAssignment],
+        regimes: Sequence[int] | None = None,
+        n_regimes: int | None = None,
+    ) -> TransitionAnalyticsResult:
+        """Analyze transitions from a sequence of RegimeAssignments."""
+        ...
+
+    def analyze_from_detection_result(
+        self,
+        result: RegimeDetectionResult,
+        regimes: Sequence[int] | None = None,
+        n_regimes: int | None = None,
+    ) -> TransitionAnalyticsResult:
+        """Analyze transitions from a RegimeDetectionResult."""
+        ...
+
+    def analyze_from_ensemble_result(
+        self,
+        result: RegimeEnsembleResult,
+        regimes: Sequence[int] | None = None,
+        n_regimes: int | None = None,
+    ) -> TransitionAnalyticsResult:
+        """Analyze transitions from a consensus RegimeEnsembleResult."""
+        ...
+
+    def analyze_from_series(
+        self,
+        timestamps: Sequence[datetime],
+        regime_ids: Sequence[int],
+        labels: Sequence[str] | None = None,
+        regimes: Sequence[int] | None = None,
+        n_regimes: int | None = None,
+    ) -> TransitionAnalyticsResult:
+        """Analyze transitions from raw chronological series."""
         ...

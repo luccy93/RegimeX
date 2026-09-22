@@ -33,13 +33,13 @@ V12 Regime Transition Probability Engine (Historical Transitions & Matrices)
 | Commit | Scope | Status | Official Commit Message |
 | :--- | :--- | :---: | :--- |
 | **Commit 01** | **Regime Transition Probability Engine** | **COMPLETE** | `feat(regime): implement transition probability engine` |
-| **Commit 02** | **Transition Analytics & Persistence Dynamics** | **PLANNED** | `feat(regime): add transition analytics and persistence dynamics` |
+| **Commit 02** | **Transition Analytics & Persistence Dynamics** | **COMPLETE** | `feat(regime): add transition analytics` |
 
 > [!IMPORTANT]
 > **Strict Architectural Volume Boundaries:**
 > - **V11**: Ensemble orchestration, canonical alignment, and consensus confidence scoring.
 > - **V12 Commit 01**: Historical transition extraction, transition count matrix, row-normalized transition probability matrix, temporal validation, sample size preservation, deterministic query APIs, and ensemble integration.
-> - **V12 Commit 02**: Conditional transition duration analytics, transition acceleration, and regime persistence forecasting.
+> - **V12 Commit 02**: Transition analytics layer: regime persistence, incoming/outgoing frequency, deterministic destination rankings, Shannon transition entropy, diversity metrics, regime change matrix, and global/regime analytical summaries.
 > - **Volume 13+**: Risk computation, portfolio optimization, strategy backtesting, AI assistants, FastAPI endpoints, and frontend components.
 
 ---
@@ -138,3 +138,46 @@ result_series = engine.compute_from_series(timestamps, regime_ids)
   - `InvalidTransitionSequenceError`: Raised on temporal order violations or duplicate timestamps.
   - `InvalidRegimeValueError`: Raised on invalid/negative/non-integer regime IDs or NaNs.
   - `RegimeTransitionComputationError`: Algorithmic/numerical failure.
+
+---
+
+## 6. Volume 12 Commit 02 Architecture — Transition Analytics
+
+The **Transition Analytics** layer (`RegimeTransitionAnalytics`) extends raw transition matrices with actionable downstream metrics:
+
+### 6.1 Core Metrics & Guarantees
+
+1. **Regime Persistence**:
+   - Diagonal empirical probability $P(i \to i)$.
+   - Persistence count $C_{i,i}$ preserved alongside rates.
+
+2. **Transition Frequency & Flow**:
+   - Outgoing transitions $N_i = \sum_j C_{i,j}$.
+   - Incoming transitions $M_j = \sum_i C_{i,j}$.
+   - Self-transitions $C_{i,i}$.
+   - Regime changes $N_i - C_{i,i}$.
+
+3. **Rate Invariants**:
+   - Per-regime: $\text{persistence\_probability} + \text{change\_rate} = 1.0 \pm 10^{-5}$ (for $N_i > 0$).
+   - Sequence-wide: $\text{global\_persistence\_rate} + \text{global\_change\_rate} = 1.0 \pm 10^{-5}$.
+
+4. **Deterministic Destination Rankings (`RankedDestination`)**:
+   - Sorted deterministically: Probability $\downarrow$, Count $\downarrow$, Target Regime ID $\uparrow$.
+   - Includes most likely destination $j^* = \operatorname{argmax}_j P(i \to j)$.
+
+5. **Transition Concentration & Entropy**:
+   - Shannon transition entropy: $H(i) = -\sum_{j=0}^{K-1} P(i \to j) \ln P(i \to j)$ (nats, natural log base $e$).
+   - Convention: $0 \ln 0 = 0$; $H(i) = 0.0$ for deterministic or unobserved transitions.
+
+6. **Transition Diversity**:
+   - Destination count: number of distinct targets $j$ observed from $i$.
+   - Source count: number of distinct origins $k$ leading to destination $j$.
+
+7. **Regime Change Matrix**:
+   - Matrix with diagonal ($i = j$) zeroed out.
+   - Normalized conditional shift distribution: $P_{\text{shift}}(i \to j) = \frac{C_{i,j}}{\sum_{k \neq i} C_{i,k}}$.
+
+8. **Analytical Summaries**:
+   - `TransitionRegimeAnalytics`: Per-regime intelligence breakdown.
+   - `GlobalTransitionAnalytics`: Global flow summary, most persistent/fluid regimes, change rates.
+   - `TransitionAnalyticsResult`: Master container providing high-performance query methods.

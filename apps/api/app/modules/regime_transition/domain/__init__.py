@@ -12,10 +12,15 @@ from app.modules.regime_transition.domain.errors import (
     RegimeTransitionError,
 )
 from app.modules.regime_transition.domain.interfaces import (
+    RegimeTransitionAnalyticsProtocol,
     RegimeTransitionEngineProtocol,
 )
 from app.modules.regime_transition.domain.models import (
+    GlobalTransitionAnalytics,
+    RankedDestination,
+    RegimeTransitionAnalytics,
     RegimeTransitionResult,
+    TransitionAnalyticsResult,
     TransitionCountMatrix,
     TransitionProbability,
     TransitionProbabilityMatrix,
@@ -23,13 +28,18 @@ from app.modules.regime_transition.domain.models import (
 )
 
 __all__ = [
+    "GlobalTransitionAnalytics",
     "InsufficientTransitionDataError",
     "InvalidRegimeValueError",
     "InvalidTransitionSequenceError",
+    "RankedDestination",
+    "RegimeTransitionAnalytics",
+    "RegimeTransitionAnalyticsProtocol",
     "RegimeTransitionComputationError",
     "RegimeTransitionEngineProtocol",
     "RegimeTransitionError",
     "RegimeTransitionResult",
+    "TransitionAnalyticsResult",
     "TransitionCountMatrix",
     "TransitionProbability",
     "TransitionProbabilityMatrix",

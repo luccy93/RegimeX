@@ -484,3 +484,232 @@ class RegimeTransitionResult(BaseModel):
     def get_self_transition_probability(self, regime_id: int) -> float:
         """Return the persistence / self-transition probability P(regime_id -> regime_id)."""
         return self.probability_matrix.get_probability(regime_id, regime_id)
+
+
+class RankedDestination(BaseModel):
+    """
+    Ranked destination regime with transition count, probability, and deterministic rank.
+    """
+
+    model_config = {"frozen": True}
+
+    target_regime: Annotated[
+        int,
+        Field(ge=0, description="Destination canonical regime ID"),
+    ]
+    target_label: str = Field(description="Destination canonical regime label")
+    probability: Annotated[
+        float,
+        Field(ge=0.0, le=1.0, description="Empirical transition probability P(source -> target)"),
+    ]
+    count: Annotated[
+        int,
+        Field(ge=0, description="Empirical transition count from source to target"),
+    ]
+    rank: Annotated[
+        int,
+        Field(ge=1, description="1-indexed rank among destinations for this source"),
+    ]
+
+
+class TransitionRegimeAnalytics(BaseModel):
+    """
+    Detailed transition analytics and behavioral statistics for a single market regime.
+    """
+
+    model_config = {"frozen": True}
+
+    regime_id: Annotated[int, Field(ge=0, description="Canonical regime ID")]
+    regime_label: str = Field(description="Canonical regime label")
+    outgoing_transition_count: Annotated[
+        int,
+        Field(ge=0, description="Total outgoing transitions originating from this regime"),
+    ]
+    incoming_transition_count: Annotated[
+        int,
+        Field(ge=0, description="Total incoming transitions arriving into this regime"),
+    ]
+    self_transition_count: Annotated[
+        int,
+        Field(ge=0, description="Count of persistence self-transitions (i -> i)"),
+    ]
+    regime_change_count: Annotated[
+        int,
+        Field(ge=0, description="Count of transitions out to different regimes (i -> j, j != i)"),
+    ]
+    persistence_probability: Annotated[
+        float,
+        Field(ge=0.0, le=1.0, description="Empirical persistence probability P(i -> i)"),
+    ]
+    change_rate: Annotated[
+        float,
+        Field(
+            ge=0.0,
+            le=1.0,
+            description="Proportion of outgoing transitions that are changes to other regimes",
+        ),
+    ]
+    most_likely_destination: int | None = Field(
+        default=None,
+        description="Highest probability destination regime ID, or None if unobserved",
+    )
+    most_likely_destination_probability: Annotated[
+        float,
+        Field(
+            ge=0.0,
+            le=1.0,
+            description="Empirical transition probability of the most likely destination",
+        ),
+    ]
+    destination_count: Annotated[
+        int,
+        Field(ge=0, description="Count of distinct destination regimes with count > 0"),
+    ]
+    source_count: Annotated[
+        int,
+        Field(ge=0, description="Count of distinct origin regimes transitioning into this regime"),
+    ]
+    transition_entropy: Annotated[
+        float,
+        Field(ge=0.0, description="Shannon transition entropy H(i) = -sum P ln P (nats)"),
+    ]
+    rankings: tuple[RankedDestination, ...] = Field(
+        default=(),
+        description="Deterministically ordered destination rankings (prob desc, target_id asc)",
+    )
+
+
+# Backward-compatible alias
+RegimeTransitionAnalytics = TransitionRegimeAnalytics
+
+
+class GlobalTransitionAnalytics(BaseModel):
+    """
+    Aggregate global transition summary across the entire observed regime sequence.
+    """
+
+    model_config = {"frozen": True}
+
+    total_observations: Annotated[
+        int,
+        Field(ge=0, description="Total observations in the analyzed sequence"),
+    ]
+    total_consecutive_transitions: Annotated[
+        int,
+        Field(ge=0, description="Total consecutive step transitions evaluated"),
+    ]
+    total_regime_changes: Annotated[
+        int,
+        Field(ge=0, description="Total regime shift transitions (source != target)"),
+    ]
+    total_self_transitions: Annotated[
+        int,
+        Field(ge=0, description="Total regime persistence transitions (source == target)"),
+    ]
+    global_change_rate: Annotated[
+        float,
+        Field(
+            ge=0.0,
+            le=1.0,
+            description="Proportion of transitions that are regime shifts",
+        ),
+    ]
+    global_persistence_rate: Annotated[
+        float,
+        Field(
+            ge=0.0,
+            le=1.0,
+            description="Proportion of transitions that are regime persistence",
+        ),
+    ]
+    number_of_regimes: Annotated[
+        int,
+        Field(ge=1, description="Number of canonical regimes in the universe"),
+    ]
+    number_of_observed_transition_edges: Annotated[
+        int,
+        Field(ge=0, description="Count of distinct directed edges (i, j) with count > 0"),
+    ]
+
+    @model_validator(mode="after")
+    def validate_global_invariants(self) -> GlobalTransitionAnalytics:
+        expected_transitions = self.total_self_transitions + self.total_regime_changes
+        if expected_transitions != self.total_consecutive_transitions:
+            raise ValueError(
+                f"Count invariant violated: self_transitions ({self.total_self_transitions}) + "
+                f"regime_changes ({self.total_regime_changes}) != "
+                f"total_consecutive_transitions ({self.total_consecutive_transitions})."
+            )
+        if self.total_consecutive_transitions > 0:
+            rate_sum = self.global_change_rate + self.global_persistence_rate
+            if abs(rate_sum - 1.0) > 1e-5:
+                raise ValueError(
+                    f"Rate invariant violated: change_rate ({self.global_change_rate}) + "
+                    f"persistence_rate ({self.global_persistence_rate}) must sum to 1.0."
+                )
+        return self
+
+
+class TransitionAnalyticsResult(BaseModel):
+    """
+    Comprehensive transition analytics container combining the underlying transition result,
+    per-regime analytics, global statistics, and regime change matrices.
+    """
+
+    model_config = {"frozen": True}
+
+    transition_result: RegimeTransitionResult = Field(
+        description="Underlying transition result from V12 Commit 01",
+    )
+    regime_analytics: dict[int, TransitionRegimeAnalytics] = Field(
+        description="Per-regime transition metrics {regime_id: analytics}",
+    )
+    global_analytics: GlobalTransitionAnalytics = Field(
+        description="Sequence-wide global transition statistics",
+    )
+    regime_change_counts: tuple[tuple[int, ...], ...] = Field(
+        description="Transition count matrix with diagonal zeroed out (shifts only)",
+    )
+    regime_change_probabilities: tuple[tuple[float, ...], ...] = Field(
+        description="Conditional shift probabilities excluding self-transitions",
+    )
+    computed_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC),
+        description="UTC timestamp when transition analytics was computed",
+    )
+
+    @field_validator("computed_at", mode="before")
+    @classmethod
+    def require_timezone_aware(cls, v: datetime) -> datetime:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            raise ValueError(f"computed_at must be timezone-aware (got naive: {v!r}).")
+        return v
+
+    def get_regime_analytics(self, regime_id: int) -> TransitionRegimeAnalytics:
+        """Retrieve analytics for a specific canonical regime."""
+        if regime_id not in self.regime_analytics:
+            raise KeyError(
+                f"Regime {regime_id} not in analyzed regimes: "
+                f"{sorted(self.regime_analytics.keys())}."
+            )
+        return self.regime_analytics[regime_id]
+
+    def get_persistence(self, regime_id: int) -> float:
+        """Shortcut for empirical persistence probability P(regime_id -> regime_id)."""
+        return self.get_regime_analytics(regime_id).persistence_probability
+
+    def get_most_likely_destination(self, regime_id: int) -> int | None:
+        """Shortcut for the most likely destination regime ID."""
+        return self.get_regime_analytics(regime_id).most_likely_destination
+
+    def get_rankings(self, regime_id: int) -> tuple[RankedDestination, ...]:
+        """Shortcut for destination rankings originating from regime_id."""
+        return self.get_regime_analytics(regime_id).rankings
+
+    def get_change_rate(self) -> float:
+        """Shortcut for sequence-wide global change rate."""
+        return self.global_analytics.global_change_rate
+
+    def get_persistence_rate(self) -> float:
+        """Shortcut for sequence-wide global persistence rate."""
+        return self.global_analytics.global_persistence_rate

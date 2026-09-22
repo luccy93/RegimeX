@@ -168,11 +168,40 @@ The `RegimeTransitionEngine` provides decoupled adapters that accept outputs fro
 ```text
 Volume 11: Ensemble Consensus & Multi-Model Agreement Confidence
                 ↓
-Volume 12 Commit 01: Regime Transition Probability Engine (Historical MLE)
+Volume 12 Commit 01: Regime Transition Probability Engine (Historical MLE) [COMPLETE]
                 ↓
-Volume 12 Commit 02: Transition Analytics, Persistence Dynamics & Acceleration
+Volume 12 Commit 02: Transition Analytics & Persistence Dynamics [COMPLETE]
                 ↓
 Volume 13: Regime-Conditional Risk Engine
 ```
 
-**Volume 12 Commit 01 is COMPLETE.**
+**Volume 12 is COMPLETE.**
+
+---
+
+## 8. Transition Analytics Architecture (Commit 02)
+
+The **Transition Analytics** layer (`RegimeTransitionAnalytics`) builds directly on `RegimeTransitionResult`:
+
+### 8.1 Domain Models
+- `RankedDestination`: Target regime, target label, probability, transition count, and rank index.
+- `TransitionRegimeAnalytics`: Per-regime intelligence covering:
+  - Persistence probability $P(i \to i)$ and count $C_{i,i}$.
+  - Outgoing, incoming, self, and regime change counts.
+  - Regime change rate $1 - P(i \to i)$.
+  - Most likely destination regime ID and associated probability.
+  - Destination count and incoming source count.
+  - Transition concentration and Shannon entropy $H(i) = -\sum P \ln P$.
+  - Deterministic destination rankings tuple.
+- `GlobalTransitionAnalytics`: Global flow summary:
+  - Total transitions, self-transitions, regime changes.
+  - Global persistence rate and global change rate ($\text{sum} = 1.0 \pm 10^{-5}$).
+  - Regime change matrix (diagonal zeroed out) and conditional shift probability matrix.
+  - Most persistent regime and most fluid (least persistent) regime IDs.
+- `TransitionAnalyticsResult`: Complete transition analytics container with accessor queries.
+
+### 8.2 Invariants & Precision
+- Zero lookahead: Operates solely on historical transition matrices.
+- Zero external ML dependencies: Pure standard library and NumPy numerical core.
+- Sample-size transparency: Counts are preserved alongside probabilities.
+- Deterministic ranking: Ordered by probability descending, count descending, target regime ID ascending.

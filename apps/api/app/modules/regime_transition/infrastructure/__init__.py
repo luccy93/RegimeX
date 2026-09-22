@@ -1,9 +1,17 @@
 """
 RegimeX Regime Transition — Infrastructure Package
 ==================================================
-Concrete engine adapters for historical regime transition analysis.
+Concrete engine adapters for historical regime transition analysis and analytics.
 """
 
-from app.modules.regime_transition.infrastructure.engine import RegimeTransitionEngine
+from app.modules.regime_transition.infrastructure.analytics import (
+    RegimeTransitionAnalytics,
+)
+from app.modules.regime_transition.infrastructure.engine import (
+    RegimeTransitionEngine,
+)
 
-__all__ = ["RegimeTransitionEngine"]
+__all__ = [
+    "RegimeTransitionAnalytics",
+    "RegimeTransitionEngine",
+]
