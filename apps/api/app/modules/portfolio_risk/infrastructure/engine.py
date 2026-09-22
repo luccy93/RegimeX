@@ -595,9 +595,9 @@ class PortfolioRiskEngine(PortfolioRiskEngineProtocol):
             prev_ts: datetime | None = None
             out_ts: list[datetime] = []
             for idx, ts in enumerate(timestamps):
-                if ts.tzinfo is None:
+                if ts.tzinfo is None or ts.utcoffset() != timedelta(0):
                     raise TemporalOrderError(
-                        f"Timestamp at index {idx} must be timezone-aware (got naive: {ts!r})."
+                        f"Timestamp at index {idx} must be UTC-aware (got: {ts!r})."
                     )
                 if prev_ts is not None and ts <= prev_ts:
                     raise TemporalOrderError(

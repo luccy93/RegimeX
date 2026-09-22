@@ -108,3 +108,62 @@ $$r_{p,t} = \sum_{i=1}^M w_i r_{i,t}$$
 - $\sum_{i=1}^M w_i = 1.0 \pm 10^{-5}$ when `is_normalized=True`.
 - Timestamps across all assets must align identically.
 - No forward-filling, back-filling, or zero imputation. Mismatches raise `MismatchedAssetAlignmentError`.
+
+---
+
+## 4. Validation Invariants & Anti-Leakage Guarantees
+
+### 4.1 Mathematical Invariants
+The validation suite enforces strict mathematical invariants on every analytical output:
+1. **Mean & Bound Consistency**:
+   $$r_{\min} \le \bar{r} \le r_{\max}$$
+   $$\min(r_t) \le \tilde{r} \le \max(r_t)$$
+2. **Non-Negative Realized Volatility**:
+   $$\sigma_{\text{period}} \ge 0, \quad \sigma_{\text{ann}} \ge 0$$
+   $$\sigma_{\text{period}} = 0 \iff r_t = c \quad \forall t$$
+3. **Downside Risk Monotonicity**:
+   $$\delta_{\text{downside}}(\tau) \ge 0$$
+   $$\tau_1 < \tau_2 \implies \delta_{\text{downside}}(\tau_1) \le \delta_{\text{downside}}(\tau_2)$$
+   $$\forall r_t \ge \tau \implies \delta_{\text{downside}}(\tau) = 0$$
+4. **Drawdown Invariants**:
+   $$DD_t \le 0 \quad \forall t, \quad MDD = \min_t DD_t \le 0$$
+   $$|MDD| = -MDD \ge 0$$
+   $$W_{\text{trough}} = W_{\text{peak}} \times (1 + MDD)$$
+5. **Linear Portfolio Aggregation**:
+   $$r_{p,t} = \sum_{i=1}^M w_i r_{i,t}$$
+   Linear combinations preserve exact expected returns and asset allocation bounds.
+
+### 4.2 Anti-Lookahead Drawdown Protection
+Running peak calculations must strictly adhere to causal point-in-time constraints:
+$$M_t = \max_{0 \le s \le t} W_s$$
+- $M_t$ is monotonically non-decreasing over time: $M_t \ge M_{t-1}$.
+- Future asset rallies (e.g. $W_{t+k} \gg M_t$) cannot retroactively inflate $M_t$ or diminish historical drawdowns at time $t$.
+- Trough timestamp strictly occurs on or after peak timestamp: $T_{\text{trough}} \ge T_{\text{peak}}$.
+- Recovery timestamp strictly succeeds trough timestamp: $T_{\text{recovery}} > T_{\text{trough}}$.
+
+### 4.3 Cross-Metric Consistency (Tail Risk Hierarchy)
+Value at Risk ($VaR_\alpha$) and Expected Shortfall ($ES_\alpha$) obey rigorous coherent risk measure relations in loss space:
+1. **Expected Shortfall Dominance**:
+   $$ES_\alpha \ge VaR_\alpha \quad \forall \alpha \in (0, 1)$$
+   The conditional average of losses exceeding the VaR quantile must be at least as severe as the quantile threshold itself across Gaussian, Student-t, fat-tailed, and empirical distributions.
+2. **Confidence Monotonicity**:
+   $$\alpha_1 < \alpha_2 \implies VaR_{\alpha_1} \le VaR_{\alpha_2} \quad \text{and} \quad ES_{\alpha_1} \le ES_{\alpha_2}$$
+
+### 4.4 Strict UTC Timezone Compliance
+All timestamp inputs and output metric representations enforce UTC awareness:
+- Every timestamp $T_t$ must satisfy `ts.tzinfo is not None and ts.utcoffset() == timedelta(0)`.
+- Naive datetime instances and non-UTC timezone offsets (e.g. EST, CET, IST) are rejected with `TemporalOrderError` or Pydantic validation errors.
+- Strict chronological sorting without duplicate timestamps is required: $T_t > T_{t-1}$.
+
+---
+
+## 5. Numerical Stability & Precision Standards
+
+1. **Micro-Scale Floating Point Precision**:
+   - Return sequences with micro-fluctuations on the scale of $10^{-8}$ maintain full precision without arithmetic underflow or degradation in volatility calculations.
+2. **Extreme Macro Fluctuations**:
+   - Extreme asymmetric market movements (e.g., single-period drops of $-99\%$ or surges of $+500\%$) compute without division by zero, wealth index divergence, or mathematical overflow.
+3. **High-Frequency & Scaled Sequences**:
+   - Long sequence vectors ($N \ge 10,000$ points) process deterministically with $O(N)$ algorithmic complexity and zero memory accumulation.
+4. **NaN & Infinity Containment**:
+   - Zero tolerance for IEEE-754 non-finite values (`float('nan')`, `float('inf')`, `float('-inf')`). The engine intercepts non-finite values at the domain boundary with `NonFiniteValueError`.

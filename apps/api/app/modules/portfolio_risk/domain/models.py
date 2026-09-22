@@ -14,7 +14,7 @@ Architectural position: ``domain/models.py``
 from __future__ import annotations
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 
@@ -39,8 +39,8 @@ class ReturnObservation(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def require_timezone_aware(cls, v: datetime) -> datetime:
-        if isinstance(v, datetime) and v.tzinfo is None:
-            raise ValueError(f"timestamp must be timezone-aware (got naive datetime: {v!r}).")
+        if isinstance(v, datetime) and (v.tzinfo is None or v.utcoffset() != timedelta(0)):
+            raise ValueError(f"timestamp must be UTC-aware (got: {v!r}).")
         return v
 
     @field_validator("return_value")
@@ -85,10 +85,8 @@ class ReturnSeries(BaseModel):
         # Validate strictly increasing UTC timestamps
         prev_ts: datetime | None = None
         for idx, ts in enumerate(self.timestamps):
-            if ts.tzinfo is None:
-                raise ValueError(
-                    f"Timestamp at index {idx} must be timezone-aware (got naive: {ts!r})."
-                )
+            if ts.tzinfo is None or ts.utcoffset() != timedelta(0):
+                raise ValueError(f"Timestamp at index {idx} must be UTC-aware (got: {ts!r}).")
             if prev_ts is not None and ts <= prev_ts:
                 raise ValueError(
                     f"Timestamps must be strictly increasing: "
@@ -144,8 +142,8 @@ class PriceSeries(BaseModel):
 
         prev_ts: datetime | None = None
         for idx, ts in enumerate(self.timestamps):
-            if ts.tzinfo is None:
-                raise ValueError(f"Timestamp at index {idx} must be timezone-aware: {ts!r}.")
+            if ts.tzinfo is None or ts.utcoffset() != timedelta(0):
+                raise ValueError(f"Timestamp at index {idx} must be UTC-aware (got: {ts!r}).")
             if prev_ts is not None and ts <= prev_ts:
                 raise ValueError(
                     f"Price timestamps must be strictly increasing: "
@@ -330,8 +328,12 @@ class DrawdownMetrics(BaseModel):
     @field_validator("peak_timestamp", "trough_timestamp", "recovery_timestamp", mode="before")
     @classmethod
     def require_tz_aware_optional(cls, v: datetime | None) -> datetime | None:
-        if v is not None and isinstance(v, datetime) and v.tzinfo is None:
-            raise ValueError(f"Drawdown timestamp must be timezone-aware: {v!r}.")
+        if (
+            v is not None
+            and isinstance(v, datetime)
+            and (v.tzinfo is None or v.utcoffset() != timedelta(0))
+        ):
+            raise ValueError(f"Drawdown timestamp must be UTC-aware (got: {v!r}).")
         return v
 
     @model_validator(mode="after")
@@ -546,8 +548,12 @@ class PortfolioRiskResult(BaseModel):
     @field_validator("start_timestamp", "end_timestamp", "computed_at", mode="before")
     @classmethod
     def require_tz_aware_timestamps(cls, v: datetime | None) -> datetime | None:
-        if v is not None and isinstance(v, datetime) and v.tzinfo is None:
-            raise ValueError(f"Timestamp must be timezone-aware (got naive: {v!r}).")
+        if (
+            v is not None
+            and isinstance(v, datetime)
+            and (v.tzinfo is None or v.utcoffset() != timedelta(0))
+        ):
+            raise ValueError(f"Timestamp must be UTC-aware (got: {v!r}).")
         return v
 
     def get_var(self, confidence_level: float) -> VaRMetrics:
