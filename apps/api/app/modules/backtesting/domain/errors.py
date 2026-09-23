@@ -172,3 +172,17 @@ class InsufficientComparisonDataError(ComparisonError):
 
     http_status: int = 422
     error_code: str = "INSUFFICIENT_COMPARISON_DATA"
+
+
+class ReportError(BacktestingError):
+    """Base exception for all performance report generation and validation errors."""
+
+    http_status: int = 422
+    error_code: str = "REPORT_ERROR"
+
+
+class InvalidReportError(ReportError):
+    """Raised when a performance report receives malformed or inconsistent inputs."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_REPORT"

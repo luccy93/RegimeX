@@ -35,6 +35,8 @@ Immutable StrategyComparisonResult
 | Commit | Type | Description | Status |
 | :---: | :---: | :--- | :---: |
 | **01** | `feat` | `feat(backtest): add strategy comparison analytics` | **DONE** |
+| **02** | `feat` | `feat(backtest): add performance reporting` | **DONE** |
+
 
 ---
 
@@ -141,11 +143,57 @@ To guide interpretation without imposing subjective ranking:
 
 ---
 
-## 7. Quality Gates & Verification
+---
+
+## 7. Performance Reporting Layer
+
+Commit 02 introduces the production-grade **Performance Reporting** capability (`apps/api/app/modules/backtesting/infrastructure/reporting.py`), transforming completed `StrategyComparisonResult` analytics into an immutable, self-contained, machine-readable `PerformanceReport`.
+
+### 7.1 Architecture & Separation of Concerns
+
+```text
+StrategyComparisonResult
+        ↓
+PerformanceReportBuilder.build(comparison_result, generated_at=..., report_id=...)
+        ├── ReportMetadata (version, timestamp bounds, strategy counts, truncation)
+        ├── ComparisonPeriod (canonical temporal evaluation window)
+        ├── StrategySummary(s) (verbatim preservation of performance & risk metrics)
+        ├── PairwiseComparison(s) (verbatim preservation of pairwise deltas)
+        ├── MetricDefinition(s) (machine-readable metric catalog with directional semantics)
+        ├── Methodology (documented quantitative assumptions and formulas)
+        └── Limitations (historical simulation disclaimer and execution constraints)
+        ↓
+PerformanceReport (Immutable, JSON-serializable, self-contained)
+```
+
+- **Zero Metric Recomputation**: Returns, volatility, drawdowns, VaR/ES, trade statistics, and pairwise deltas are consumed directly from V15 Commit 01 analytics without re-evaluation or metric drift.
+- **Strict Neutrality**: The report is descriptive only. It contains no rankings, scorecards, "winner" declarations, or investment recommendations.
+- **Deterministic Generation**: Supports explicit caller-injected `generated_at` timestamps and `report_id` identifiers, guaranteeing bit-for-bit identical JSON and model representations across runs.
+
+### 7.2 Core Domain Models
+
+| Model | Module | Purpose |
+| :--- | :--- | :--- |
+| `PerformanceReport` | `domain/models.py` | Top-level immutable report holding summaries, pairwise deltas, metadata, methodology, and limitations. |
+| `ReportMetadata` | `domain/models.py` | Structural metadata including schema version (`1.0`), strategy count, period boundaries, and source engine versions. |
+| `MetricDefinition` | `domain/models.py` | Catalog specification defining metric name, unit, functional explanation, directional semantics, and source engine. |
+| `Methodology` | `domain/models.py` | Explicit documentation of intersection policy, trade accounting, pairwise deltas, and risk engine delegation. |
+| `PerformanceReportBuilder` | `infrastructure/reporting.py` | Service builder conforming to `PerformanceReportBuilderProtocol`, providing `build()` and `build_from_inputs()`. |
+
+### 7.3 Serialization & Machine Readability
+
+- Native Pydantic v2 JSON serialization via `report.model_dump_json()` and dictionary export via `report.model_dump()`.
+- Deterministic round-trip deserialization via `PerformanceReport.model_validate_json(...)`.
+- Strict timezone-aware UTC datetime formatting (ISO 8601) and finite numerical guarantees across all numeric fields.
+
+---
+
+## 8. Quality Gates & Verification
 
 All quality gates pass without warnings or errors:
-- **Unit & Integration Tests**: 106 backtesting unit tests passing (1,092 total across platform).
-- **Linter**: `ruff check app tests` clean.
-- **Formatter**: `ruff format --check app tests` clean.
-- **Type Checker**: `mypy app tests` strict clean.
+- **Unit & Integration Tests**: 127 backtesting unit tests passing (1,113 total across platform).
+- **Linter**: `ruff check app tests` clean (0 errors).
+- **Formatter**: `ruff format --check app tests` clean (311 files verified).
+- **Type Checker**: `mypy app tests` strict clean (0 issues in 311 files).
 - **Frontend Quality**: `npm run lint` and `npm run type-check` in `apps/web` clean.
+

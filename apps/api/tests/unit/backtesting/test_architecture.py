@@ -39,9 +39,11 @@ class TestBacktestingArchitectureBoundaries:
             "app.modules.backtesting.infrastructure.portfolio",
             "app.modules.backtesting.infrastructure.engine",
             "app.modules.backtesting.infrastructure.comparison",
+            "app.modules.backtesting.infrastructure.reporting",
             "app.modules.backtesting.infrastructure",
             "app.modules.backtesting",
         ]
+
         for mod in backtest_modules:
             if mod in sys.modules:
                 del sys.modules[mod]

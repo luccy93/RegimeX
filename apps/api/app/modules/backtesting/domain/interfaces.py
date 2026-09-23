@@ -19,6 +19,7 @@ from app.modules.backtesting.domain.models import (
     FillEvent,
     MarketEvent,
     OrderRequest,
+    PerformanceReport,
     Position,
     StrategyComparisonInput,
     StrategyComparisonResult,
@@ -176,5 +177,36 @@ class StrategyComparisonEngineProtocol(Protocol):
         -------
         StrategyComparisonResult
             Immutable, deterministic strategy comparison result.
+        """
+        ...
+
+
+class PerformanceReportBuilderProtocol(Protocol):
+    """
+    Protocol for generating structured performance reports from strategy comparisons.
+    """
+
+    def build(
+        self,
+        comparison_result: StrategyComparisonResult,
+        generated_at: datetime | None = None,
+        report_id: str | None = None,
+    ) -> PerformanceReport:
+        """
+        Construct an immutable performance report from a completed strategy comparison result.
+
+        Parameters
+        ----------
+        comparison_result : StrategyComparisonResult
+            The completed, validated strategy comparison analytics result.
+        generated_at : datetime | None
+            Optional explicit generation timestamp for deterministic reporting.
+        report_id : str | None
+            Optional explicit report identifier.
+
+        Returns
+        -------
+        PerformanceReport
+            Self-contained, immutable performance report.
         """
         ...

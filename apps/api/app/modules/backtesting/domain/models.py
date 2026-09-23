@@ -766,3 +766,144 @@ class StrategyComparisonResult(BaseModel):
         raise KeyError(
             f"Pairwise comparison for ({base_id!r}, {target_id!r}) not found in comparison result."
         )
+
+
+# =============================================================================
+# Performance Reporting Models
+# =============================================================================
+
+REPORT_SCHEMA_VERSION: str = "1.0"
+
+
+class MetricDefinition(BaseModel):
+    """
+    Standardized, machine-readable metadata definition for a performance or risk metric.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    metric_name: Annotated[str, Field(min_length=1, description="Canonical metric identifier")]
+    description: Annotated[
+        str, Field(min_length=1, description="Functional explanation of the metric")
+    ]
+    unit: Annotated[
+        str, Field(min_length=1, description="Measurement unit (e.g. ratio, currency, etc.)")
+    ]
+    direction_semantics: Annotated[
+        str, Field(min_length=1, description="Descriptive directional interpretation")
+    ]
+    source: Annotated[str, Field(min_length=1, description="Originating engine or model component")]
+
+
+class Methodology(BaseModel):
+    """
+    Structured documentation of quantitative assumptions and evaluation rules.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    common_period_policy: str
+    trade_definition: str
+    pairwise_delta_definition: str
+    relative_difference_definition: str
+    risk_engine_source: str
+    return_type: str
+    execution_engine_source: str
+
+
+class ReportMetadata(BaseModel):
+    """
+    Structural metadata for a generated performance report.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    report_version: str = REPORT_SCHEMA_VERSION
+    comparison_start: datetime
+    comparison_end: datetime
+    strategy_count: Annotated[int, Field(ge=1, description="Number of evaluated strategies")]
+    pairwise_comparison_count: Annotated[int, Field(ge=0, description="Total pairwise comparisons")]
+    is_truncated: bool
+    source_engine_version: str = "1.0.0"
+    metric_schema_version: str = "1.0.0"
+
+    @field_validator("comparison_start", "comparison_end", mode="before")
+    @classmethod
+    def check_utc(cls, v: datetime) -> datetime:
+        res = _validate_utc(v, "metadata timestamp")
+        assert res is not None
+        return res
+
+    @field_validator("report_version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("report_version cannot be empty or whitespace.")
+        return v.strip()
+
+
+class PerformanceReport(BaseModel):
+    """
+    Immutable, self-contained machine-readable report summarizing historical strategy evaluation.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    report_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    report_version: str = REPORT_SCHEMA_VERSION
+    generated_at: datetime | None = None
+    metadata: ReportMetadata
+    comparison_period: ComparisonPeriod
+    strategies: tuple[StrategySummary, ...]
+    pairwise_comparisons: tuple[PairwiseComparison, ...]
+    metric_definitions: tuple[MetricDefinition, ...]
+    methodology: Methodology
+    limitations: tuple[str, ...]
+
+    @field_validator("generated_at", mode="before")
+    @classmethod
+    def check_utc_optional(cls, v: datetime | None) -> datetime | None:
+        if v is not None:
+            return _validate_utc(v, "generated_at")
+        return v
+
+    @field_validator("report_version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("report_version cannot be empty or whitespace.")
+        return v.strip()
+
+    @model_validator(mode="after")
+    def validate_report_integrity(self) -> PerformanceReport:
+        if len(self.strategies) == 0:
+            raise ValueError("PerformanceReport requires at least one strategy summary.")
+        seen_ids: set[str] = set()
+        for s in self.strategies:
+            if s.strategy_id in seen_ids:
+                raise ValueError(f"Duplicate strategy ID in report: {s.strategy_id!r}.")
+            seen_ids.add(s.strategy_id)
+        return self
+
+    def get_strategy(self, strategy_id: str) -> StrategySummary:
+        """Retrieve StrategySummary by strategy_id."""
+        for s in self.strategies:
+            if s.strategy_id == strategy_id:
+                return s
+        raise KeyError(f"Strategy {strategy_id!r} not found in performance report.")
+
+    def get_pairwise(self, base_id: str, target_id: str) -> PairwiseComparison:
+        """Retrieve PairwiseComparison for ordered pair (base_id, target_id)."""
+        for p in self.pairwise_comparisons:
+            if p.base_strategy_id == base_id and p.target_strategy_id == target_id:
+                return p
+        raise KeyError(
+            f"Pairwise comparison ({base_id!r}, {target_id!r}) not found in performance report."
+        )
+
+    def get_metric_definition(self, metric_name: str) -> MetricDefinition:
+        """Retrieve MetricDefinition by metric_name."""
+        for m in self.metric_definitions:
+            if m.metric_name == metric_name:
+                return m
+        raise KeyError(f"Metric definition {metric_name!r} not found in performance report.")
