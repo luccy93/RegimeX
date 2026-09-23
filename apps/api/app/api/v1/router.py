@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health
+from app.api.v1.endpoints import health, markets
 
 v1_router = APIRouter(prefix="/api/v1")
 
@@ -25,6 +25,8 @@ v1_router = APIRouter(prefix="/api/v1")
 # Core / Infrastructure endpoints (always mounted)
 # -------------------------------------------------------------------------
 v1_router.include_router(health.router)
+v1_router.include_router(markets.router)
+
 
 # -------------------------------------------------------------------------
 # Domain endpoints — included in their respective volumes

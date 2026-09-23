@@ -1,20 +1,13 @@
 """
-RegimeX API — Application Factory
-=====================================
-This module is the single entry point for constructing the FastAPI application.
+RegimeX API — Application Factory & Entrypoint
+==============================================
+Single entry point for constructing and configuring the RegimeX FastAPI application.
 
-Pattern: Application Factory
-  - ``create_app()`` builds and configures the FastAPI instance.
-  - All wiring (routers, middleware, exception handlers, lifespan events)
-    happens here — not inside individual domain modules.
-  - Uvicorn / ASGI servers point to ``main:app`` or ``main:create_app``.
-
-Usage:
-  Development:
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-  Production (via Docker):
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+Architecture:
+- Application Factory: ``create_app()`` instantiates and configures the FastAPI app.
+- Transport Boundary: Orchestrates routing, middleware, lifecycle, and error mapping.
+- Clean Architecture: No business logic in routes or main; delegates to application/domain.
+- Versioning: Public business APIs mounted under ``/api/v1``.
 """
 
 from __future__ import annotations
@@ -23,12 +16,16 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from app.api.v1.models import HealthResponse, ReadinessResponse, RootResponse
 from app.api.v1.router import v1_router
 from app.core.config import get_settings
+from app.core.dependencies import ReadinessCheckerDep
 from app.core.errors import register_error_handlers
 
 logger = logging.getLogger(__name__)
@@ -46,13 +43,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     Startup:
       - Validate configuration.
-      - (V05+) Initialize database connection pool.
-      - (V05+) Initialize Redis client.
-      - (V05+) Initialize Celery application.
-
+      - Register default market data providers.
     Shutdown:
-      - (V05+) Close database connection pool.
-      - (V05+) Close Redis client.
+      - Dispose database connection pool cleanly.
     """
     settings = get_settings()
 
@@ -66,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
-    # V05 Commit 02: Register initial market data provider
+    # Register initial market data provider
     from app.modules.market_data.application.registry import default_registry
     from app.modules.market_data.infrastructure.providers.yahoo_finance import (
         YahooFinanceProvider,
@@ -75,18 +68,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not default_registry.is_registered("yahoo_finance"):
         default_registry.register(YahooFinanceProvider())
 
-    # V05+: await db_pool.initialize()
-    # V05+: await redis_client.initialize()
-
     yield  # Application is running
 
     # Dispose database engine pool cleanly
     from app.core.database import dispose_engine
 
     await dispose_engine()
-
-    # V05+: await redis_client.close()
-
     logger.info("RegimeX API shut down cleanly")
 
 
@@ -99,9 +86,9 @@ def create_app() -> FastAPI:
     """
     Construct and configure the RegimeX FastAPI application.
 
-    Returns a fully configured FastAPI instance. This factory function
-    is used directly for testing (instantiate a fresh app per test session)
-    and for production startup.
+    Returns a fully configured FastAPI instance with versioned routing,
+    request correlation tracking, CORS protection, error contracts, and
+    readiness/liveness probes.
     """
     settings = get_settings()
 
@@ -109,15 +96,23 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=settings.app_version,
         description=(
-            "RegimeX Open-Source Market Intelligence Platform — REST API.\n\n"
-            "Provides programmatic access to market regime detection, risk analytics, "
-            "backtesting, and quantitative research infrastructure.\n\n"
-            "**This API does not provide financial advice.** All outputs are for "
-            "informational and research purposes only."
+            "RegimeX Open-Source Market Intelligence Platform — Versioned REST API.\n\n"
+            "Provides programmatic access to market intelligence, regime detection, "
+            "risk analytics, and quantitative backtesting infrastructure.\n\n"
+            "### Architecture & Versioning\n"
+            "- Root endpoints (``/``, ``/health``, ``/ready``) provide platform identity "
+            "and operational telemetry.\n"
+            "- Versioned business endpoints are segregated under ``/api/v1``.\n\n"
+            "### Authentication Status\n"
+            "Authentication and authorization are intentionally deferred to Volume 17. "
+            "Volume 16 Commit 01 establishes the unauthenticated public API foundation.\n\n"
+            "### Disclaimer\n"
+            "This API does not provide financial advice. All calculations and outputs "
+            "are for informational and quantitative research purposes only."
         ),
-        docs_url="/api/docs" if not settings.is_production else None,
-        redoc_url="/api/redoc" if not settings.is_production else None,
-        openapi_url="/api/openapi.json" if not settings.is_production else None,
+        docs_url="/docs" if not settings.is_production else None,
+        redoc_url="/redoc" if not settings.is_production else None,
+        openapi_url="/openapi.json" if not settings.is_production else None,
         lifespan=lifespan,
     )
 
@@ -125,34 +120,98 @@ def create_app() -> FastAPI:
     # Middleware
     # -------------------------------------------------------------------------
 
-    # CORS — configure allowed origins from settings
+    # CORS — safe configuration adhering to security baseline
+    allow_creds = "*" not in settings.allowed_origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
-        allow_credentials=True,
+        allow_credentials=allow_creds,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         expose_headers=["X-Request-ID"],
     )
 
-    # Request ID middleware — attach a unique ID to every request for tracing
+    # Request ID middleware — attach correlation ID to every request/response
     @app.middleware("http")
     async def attach_request_id(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        incoming_id = request.headers.get("X-Request-ID")
+        clean_id = incoming_id.strip() if incoming_id else ""
+        request_id = clean_id if clean_id else str(uuid.uuid4())
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
 
     # -------------------------------------------------------------------------
-    # Exception handlers
+    # Exception Handlers
     # -------------------------------------------------------------------------
     register_error_handlers(app)
 
     # -------------------------------------------------------------------------
-    # Routers
+    # Root & Diagnostic Endpoints
+    # -------------------------------------------------------------------------
+
+    @app.get(
+        "/",
+        response_model=RootResponse,
+        tags=["Root"],
+        summary="API Root Metadata",
+        description="Machine-readable platform metadata and status.",
+    )
+    async def root_endpoint() -> RootResponse:
+        current_settings = get_settings()
+        return RootResponse(
+            name=current_settings.app_name,
+            version=current_settings.app_version,
+            api_version="v1",
+            status="ok",
+        )
+
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        tags=["Health"],
+        summary="Process Liveness Probe",
+        description="Process liveness probe returning HTTP 200 if the process is alive.",
+    )
+    async def health_endpoint() -> HealthResponse:
+        return HealthResponse(status="ok")
+
+    @app.get(
+        "/ready",
+        response_model=ReadinessResponse,
+        tags=["Health"],
+        summary="Operational Readiness Probe",
+        description="Evaluates whether the application is ready to serve traffic.",
+    )
+    async def readiness_endpoint(
+        response: Response,
+        checker: ReadinessCheckerDep,
+    ) -> ReadinessResponse:
+        checks = await checker.check()
+        all_ok = all(v == "ok" for v in checks.values())
+        if not all_ok:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return ReadinessResponse(
+                status="not_ready",
+                checks=checks,
+                timestamp=datetime.now(tz=UTC).isoformat(),
+            )
+        return ReadinessResponse(
+            status="ready",
+            checks=checks,
+            timestamp=datetime.now(tz=UTC).isoformat(),
+        )
+
+    # Alias /api/openapi.json for backward compatibility
+    @app.get("/api/openapi.json", include_in_schema=False)
+    async def api_openapi_alias() -> Response:
+        return JSONResponse(app.openapi())
+
+    # -------------------------------------------------------------------------
+    # Versioned Routers
     # -------------------------------------------------------------------------
     app.include_router(v1_router)
 
@@ -160,8 +219,8 @@ def create_app() -> FastAPI:
 
 
 # =============================================================================
-# Application instance
+# Application Instance
 # =============================================================================
 
-# ASGI app — used by uvicorn and test clients
+# ASGI app instance exposed for Uvicorn and test runners
 app: FastAPI = create_app()

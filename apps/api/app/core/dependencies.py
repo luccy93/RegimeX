@@ -18,17 +18,16 @@ established. Stubs are documented below to communicate the intended pattern.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-
-if TYPE_CHECKING:
-    from app.modules.market_data.application.registry import ProviderRegistry
-    from app.modules.market_data.domain.provider import MarketDataProvider
-    from app.modules.market_data.domain.repository import MarketDataRepository
+from app.modules.market_data.application.registry import ProviderRegistry
+from app.modules.market_data.application.service import MarketDataService
+from app.modules.market_data.domain.provider import MarketDataProvider
+from app.modules.market_data.domain.repository import MarketDataRepository
 
 # =============================================================================
 # Settings Dependency
@@ -111,8 +110,46 @@ MarketDataRepositoryDep = Annotated[MarketDataRepository, Depends(market_data_re
 
 
 # =============================================================================
-# Future Dependency Stubs
+# Market Data Service Dependency
 # =============================================================================
+
+
+def market_service_dep(
+    provider: MarketDataProviderDep,
+) -> MarketDataService:
+    """Provide the application MarketDataService facade."""
+    from app.modules.market_data.application.service import MarketDataService
+
+    return MarketDataService(provider=provider)
+
+
+MarketServiceDep = Annotated[MarketDataService, Depends(market_service_dep)]
+
+
+# =============================================================================
+# Readiness Dependency
+# =============================================================================
+
+
+class ReadinessChecker:
+    """
+    Evaluates application and infrastructure dependency readiness.
+
+    Supports test overrides to simulate ready and not-ready states.
+    """
+
+    async def check(self) -> dict[str, str]:
+        """Perform readiness checks and return status mapping."""
+        return {"application": "ok"}
+
+
+def readiness_checker_dep() -> ReadinessChecker:
+    """Provide the default ReadinessChecker."""
+    return ReadinessChecker()
+
+
+ReadinessCheckerDep = Annotated[ReadinessChecker, Depends(readiness_checker_dep)]
+
 # The following stubs document the intended dependency pattern for resources
 # that will be implemented in later volumes. They are intentionally not
 # implemented here to respect volume scope boundaries.

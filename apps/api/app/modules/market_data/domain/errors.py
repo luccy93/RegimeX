@@ -56,7 +56,7 @@ class ProviderError(RegimeXError):
         provider_id: str = "",
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(message, details=details)
+        super().__init__(message, details=details if details is not None else {})
         self.provider_id = provider_id
 
     def __str__(self) -> str:
@@ -75,6 +75,7 @@ class ProviderConfigurationError(ProviderError):
     the environment lacks required variables.
     """
 
+    http_status = 500
     error_code = "PROVIDER_CONFIGURATION_ERROR"
 
 
@@ -91,6 +92,7 @@ class ProviderUnavailableError(ProviderError):
     or vendor SDK connection errors.
     """
 
+    http_status = 503
     error_code = "PROVIDER_UNAVAILABLE"
 
 
@@ -105,6 +107,7 @@ class ProviderRateLimitError(ProviderError):
     the provider includes a ``Retry-After`` header or equivalent.
     """
 
+    http_status = 429
     error_code = "PROVIDER_RATE_LIMIT"
 
     def __init__(
@@ -129,6 +132,7 @@ class ProviderAuthenticationError(ProviderError):
     exception message or details — log-safe error messages only.
     """
 
+    http_status = 401
     error_code = "PROVIDER_AUTHENTICATION_ERROR"
 
 
@@ -146,6 +150,7 @@ class ProviderDataError(ProviderError):
     attributes; only include sanitised diagnostic messages.
     """
 
+    http_status = 502
     error_code = "PROVIDER_DATA_ERROR"
 
 
@@ -160,6 +165,7 @@ class ProviderSymbolNotFoundError(ProviderError):
         symbol: The symbol that was not found.
     """
 
+    http_status = 404
     error_code = "PROVIDER_SYMBOL_NOT_FOUND"
 
     def __init__(
@@ -190,6 +196,7 @@ class StorageError(RegimeXError):
     clean platform errors without leaking credentials or raw SQL strings.
     """
 
+    http_status = 500
     error_code = "STORAGE_ERROR"
 
     def __init__(
@@ -197,22 +204,25 @@ class StorageError(RegimeXError):
         message: str,
         details: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(message, details=details)
+        super().__init__(message, details=details if details is not None else {})
 
 
 class StorageConnectionError(StorageError):
     """Database connectivity failure or pool exhaustion."""
 
+    http_status = 503
     error_code = "STORAGE_CONNECTION_ERROR"
 
 
 class StorageIntegrityError(StorageError):
     """Database constraint or data integrity violation."""
 
+    http_status = 409
     error_code = "STORAGE_INTEGRITY_ERROR"
 
 
 class StorageNotFoundError(StorageError):
     """Requested record was not found in the persistence store."""
 
+    http_status = 404
     error_code = "STORAGE_NOT_FOUND"

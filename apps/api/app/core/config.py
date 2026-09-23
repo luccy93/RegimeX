@@ -49,13 +49,15 @@ class Settings(BaseSettings):
     # Application identity
     # -------------------------------------------------------------------------
     app_name: str = Field(default="RegimeX API", description="Human-readable application name")
-    app_version: str = Field(default="0.1.0", description="Semantic version of this API")
+    app_version: str = Field(default="1.0.0", description="Semantic version of this API")
     env: Environment = Field(default=Environment.DEVELOPMENT, description="Deployment environment")
     debug: bool = Field(default=False, description="Enable debug mode (never True in production)")
 
     # -------------------------------------------------------------------------
     # API
     # -------------------------------------------------------------------------
+    api_host: str = Field(default="0.0.0.0", description="API server bind host")  # noqa: S104
+    api_port: int = Field(default=8000, ge=1, le=65535, description="API server bind port")
     api_v1_prefix: str = Field(default="/api/v1", description="URL prefix for API version 1")
     allowed_origins: list[str] = Field(
         default=["http://localhost:3000"],
