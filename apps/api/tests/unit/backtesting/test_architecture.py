@@ -38,6 +38,7 @@ class TestBacktestingArchitectureBoundaries:
             "app.modules.backtesting.infrastructure.execution",
             "app.modules.backtesting.infrastructure.portfolio",
             "app.modules.backtesting.infrastructure.engine",
+            "app.modules.backtesting.infrastructure.comparison",
             "app.modules.backtesting.infrastructure",
             "app.modules.backtesting",
         ]

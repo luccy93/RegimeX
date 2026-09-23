@@ -3,6 +3,7 @@ RegimeX Backtesting — Infrastructure Layer Exports
 ==================================================
 """
 
+from app.modules.backtesting.infrastructure.comparison import StrategyComparisonEngine
 from app.modules.backtesting.infrastructure.engine import (
     EventDrivenBacktestEngine,
     StrategyContextImpl,
@@ -14,5 +15,6 @@ __all__ = [
     "EventDrivenBacktestEngine",
     "SimulatedExecutionModel",
     "SimulatedPortfolio",
+    "StrategyComparisonEngine",
     "StrategyContextImpl",
 ]

@@ -123,3 +123,52 @@ class NonFiniteValueError(BacktestingError):
 
     http_status: int = 422
     error_code: str = "NON_FINITE_VALUE"
+
+
+class ComparisonError(BacktestingError):
+    """Base exception for all strategy comparison errors."""
+
+    http_status: int = 422
+    error_code: str = "COMPARISON_ERROR"
+
+
+class EmptyComparisonError(ComparisonError):
+    """Raised when a comparison is attempted with an empty collection of strategies."""
+
+    http_status: int = 422
+    error_code: str = "EMPTY_COMPARISON"
+
+
+class DuplicateStrategyIdError(ComparisonError):
+    """Raised when multiple strategies in a comparison share an identical identifier."""
+
+    http_status: int = 422
+    error_code: str = "DUPLICATE_STRATEGY_ID"
+
+
+class InvalidStrategyIdError(ComparisonError):
+    """Raised when a strategy identifier is empty, whitespace-only, or invalid."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_STRATEGY_ID"
+
+
+class IncompatibleEvaluationPeriodError(ComparisonError):
+    """Raised when strategies have non-overlapping or incompatible evaluation time periods."""
+
+    http_status: int = 422
+    error_code: str = "INCOMPATIBLE_EVALUATION_PERIOD"
+
+
+class InvalidEquityError(ComparisonError):
+    """Raised when initial equity is non-positive or non-finite."""
+
+    http_status: int = 422
+    error_code: str = "INVALID_EQUITY"
+
+
+class InsufficientComparisonDataError(ComparisonError):
+    """Raised when a strategy's equity series has insufficient observations in the common period."""
+
+    http_status: int = 422
+    error_code: str = "INSUFFICIENT_COMPARISON_DATA"

@@ -10,8 +10,9 @@ Architectural position: ``domain/interfaces.py``
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from app.modules.backtesting.domain.models import (
     BacktestResult,
@@ -19,7 +20,12 @@ from app.modules.backtesting.domain.models import (
     MarketEvent,
     OrderRequest,
     Position,
+    StrategyComparisonInput,
+    StrategyComparisonResult,
 )
+
+if TYPE_CHECKING:
+    from app.modules.portfolio_risk.domain.interfaces import PortfolioRiskEngineProtocol
 
 
 class StrategyContext(Protocol):
@@ -139,5 +145,36 @@ class BacktestEngineProtocol(Protocol):
     ) -> BacktestResult:
         """
         Execute an end-to-end backtest of the strategy over historical market observations.
+        """
+        ...
+
+
+class StrategyComparisonEngineProtocol(Protocol):
+    """
+    Protocol for comparing multiple backtest strategy results.
+    """
+
+    def compare(
+        self,
+        inputs: Sequence[StrategyComparisonInput],
+        periods_per_year: float | None = None,
+        risk_engine: PortfolioRiskEngineProtocol | None = None,
+    ) -> StrategyComparisonResult:
+        """
+        Compare two or more strategy backtest results across a common evaluation period.
+
+        Parameters
+        ----------
+        inputs : Sequence[StrategyComparisonInput]
+            Validated sequence of strategy comparison inputs.
+        periods_per_year : float | None
+            Annualization factor for volatility and return calculations.
+        risk_engine : PortfolioRiskEngineProtocol | None
+            Optional explicit risk engine instance conforming to V13 protocol.
+
+        Returns
+        -------
+        StrategyComparisonResult
+            Immutable, deterministic strategy comparison result.
         """
         ...
