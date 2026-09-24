@@ -247,3 +247,63 @@ def test_get_market_data_unknown_symbol(test_client: TestClient) -> None:
     data = response.json()
     assert data["error"]["code"] == "PROVIDER_SYMBOL_NOT_FOUND"
     assert "NONEXISTENT_TICKER" in data["error"]["message"]
+
+
+def test_list_markets_empty_catalog() -> None:
+    """GET /api/v1/markets returns empty item list when provider has no instruments."""
+
+    class EmptyProvider(MockMarketDataProvider):
+        async def get_supported_symbols(
+            self, asset_class: AssetClass | None = None
+        ) -> list[Instrument]:
+            return []
+
+    empty_service = MarketDataService(provider=EmptyProvider(), default_markets=())
+    app = create_app()
+    app.dependency_overrides[market_service_dep] = lambda: empty_service
+    client = TestClient(app)
+
+    response = client.get("/api/v1/markets")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
+def test_list_markets_deterministic_ordering(test_client: TestClient) -> None:
+    """GET /api/v1/markets returns items in deterministic stable sequence."""
+    resp1 = test_client.get("/api/v1/markets?limit=10")
+    resp2 = test_client.get("/api/v1/markets?limit=10")
+    assert resp1.status_code == 200
+    assert resp2.status_code == 200
+    assert resp1.json()["items"] == resp2.json()["items"]
+
+
+def test_get_market_data_negative_limit_rejected(test_client: TestClient) -> None:
+    """Limit < 1 returns 422 VALIDATION_ERROR."""
+    start = "2024-01-01T00:00:00Z"
+    end = "2024-01-10T00:00:00Z"
+    response = test_client.get(f"/api/v1/markets/SPY/data?start={start}&end={end}&limit=-5")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_get_market_data_excessive_limit_rejected(test_client: TestClient) -> None:
+    """Limit > 5000 returns 422 VALIDATION_ERROR."""
+    start = "2024-01-01T00:00:00Z"
+    end = "2024-01-10T00:00:00Z"
+    response = test_client.get(f"/api/v1/markets/SPY/data?start={start}&end={end}&limit=99999")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_get_market_data_deterministic_ordering(test_client: TestClient) -> None:
+    """Market data bars are strictly ascending by timestamp."""
+    start = "2024-01-01T00:00:00Z"
+    end = "2024-01-15T00:00:00Z"
+    response = test_client.get(f"/api/v1/markets/SPY/data?start={start}&end={end}")
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) > 1
+    for i in range(1, len(items)):
+        assert items[i]["timestamp"] > items[i - 1]["timestamp"]

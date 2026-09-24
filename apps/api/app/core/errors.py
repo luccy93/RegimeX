@@ -384,6 +384,34 @@ def register_error_handlers(app: FastAPI) -> None:
     except ImportError:
         pass
 
+    try:
+        from app.modules.regime_detection.domain.errors import RegimeDetectionError
+
+        app.add_exception_handler(RegimeDetectionError, regimex_error_handler)  # type: ignore[arg-type]
+    except ImportError:
+        pass
+
+    try:
+        from app.modules.regime_intelligence.domain.errors import RegimeIntelligenceError
+
+        app.add_exception_handler(RegimeIntelligenceError, regimex_error_handler)  # type: ignore[arg-type]
+    except ImportError:
+        pass
+
+    try:
+        from app.modules.regime_transition.domain.errors import RegimeTransitionError
+
+        app.add_exception_handler(RegimeTransitionError, regimex_error_handler)  # type: ignore[arg-type]
+    except ImportError:
+        pass
+
+    try:
+        from app.modules.feature_engineering.domain.errors import FeatureEngineeringError
+
+        app.add_exception_handler(FeatureEngineeringError, regimex_error_handler)  # type: ignore[arg-type]
+    except ImportError:
+        pass
+
     # 3. HTTP and Validation errors
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]

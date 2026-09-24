@@ -47,6 +47,8 @@ class TestAppFactoryAndRoot:
         assert "/api/v1/health/ready" in paths
         assert "/api/v1/markets" in paths
         assert "/api/v1/markets/{symbol}/data" in paths
+        assert "/api/v1/markets/{symbol}/regime" in paths
+        assert "/api/v1/markets/{symbol}/regime/transitions" in paths
 
     def test_openapi_json_endpoint_accessible(self, client: TestClient) -> None:
         """GET /openapi.json must be accessible and return valid OpenAPI JSON."""

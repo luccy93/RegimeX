@@ -8,6 +8,9 @@ current regime context, and deterministic ranking.
 Conforms to V03 Architecture and V09 Specifications.
 """
 
+from app.modules.regime_intelligence.application.facade import (
+    MarketIntelligenceFacade,
+)
 from app.modules.regime_intelligence.application.service import (
     RegimeIntelligenceService,
 )
@@ -34,6 +37,7 @@ __all__ = [
     "InvalidFeatureStatisticsError",
     "InvalidRegimeAssignmentError",
     "InvalidRegimeHistoryError",
+    "MarketIntelligenceFacade",
     "RegimeAssignment",
     "RegimeHistorySummary",
     "RegimeIntelligenceError",

@@ -28,6 +28,7 @@ from app.modules.market_data.application.registry import ProviderRegistry
 from app.modules.market_data.application.service import MarketDataService
 from app.modules.market_data.domain.provider import MarketDataProvider
 from app.modules.market_data.domain.repository import MarketDataRepository
+from app.modules.regime_intelligence.application.facade import MarketIntelligenceFacade
 
 # =============================================================================
 # Settings Dependency
@@ -124,6 +125,25 @@ def market_service_dep(
 
 
 MarketServiceDep = Annotated[MarketDataService, Depends(market_service_dep)]
+
+
+# =============================================================================
+# Market Intelligence Facade Dependency (V16 Commit 02)
+# =============================================================================
+
+
+def market_intelligence_dep(
+    market_service: MarketServiceDep,
+) -> MarketIntelligenceFacade:
+    """Provide the application MarketIntelligenceFacade."""
+    from app.modules.regime_intelligence.application.facade import (
+        MarketIntelligenceFacade,
+    )
+
+    return MarketIntelligenceFacade(market_service=market_service)
+
+
+MarketIntelligenceDep = Annotated[MarketIntelligenceFacade, Depends(market_intelligence_dep)]
 
 
 # =============================================================================
