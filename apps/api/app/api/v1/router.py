@@ -17,15 +17,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, markets
+from app.api.v1.endpoints import auth, health, markets
 
 v1_router = APIRouter(prefix="/api/v1")
 
 # -------------------------------------------------------------------------
-# Core / Infrastructure endpoints (always mounted)
+# Core / Infrastructure & Auth endpoints
 # -------------------------------------------------------------------------
 v1_router.include_router(health.router)
 v1_router.include_router(markets.router)
+v1_router.include_router(auth.router)
 
 
 # -------------------------------------------------------------------------

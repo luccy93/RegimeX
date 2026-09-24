@@ -11,6 +11,7 @@ Design Principles:
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -319,6 +320,59 @@ class MarketTransitionResponse(BaseModel):
     )
 
 
+# =============================================================================
+# Authentication Request & Response Models (V17 Commit 01)
+# =============================================================================
+
+
+class UserResponse(BaseModel):
+    """Public representation of an authenticated user identity."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: uuid.UUID = Field(description="Unique user primary identifier")
+    email: str = Field(description="Canonical normalized user email")
+    is_active: bool = Field(description="Account active status")
+    created_at: datetime = Field(description="Account creation timestamp (UTC)")
+
+
+class RegisterRequest(BaseModel):
+    """User account registration payload."""
+
+    model_config = ConfigDict(frozen=True)
+
+    email: str = Field(description="User email address")
+    password: str = Field(min_length=12, description="User password (minimum 12 characters)")
+
+
+class RegisterResponse(BaseModel):
+    """Response returned upon successful user account registration."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user: UserResponse = Field(description="Newly created user account identity")
+
+
+class LoginRequest(BaseModel):
+    """User login credential payload."""
+
+    model_config = ConfigDict(frozen=True)
+
+    email: str = Field(description="User email address")
+    password: str = Field(description="User password")
+
+
+class LoginResponse(BaseModel):
+    """Response returned upon successful authentication containing access token."""
+
+    model_config = ConfigDict(frozen=True)
+
+    access_token: str = Field(description="Signed JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    expires_in: int = Field(description="Token lifetime in seconds")
+    user: UserResponse = Field(description="Authenticated user identity")
+
+
 __all__ = [
     "ApiError",
     "ApiErrorDetail",
@@ -326,6 +380,8 @@ __all__ = [
     "FeatureStatisticDTO",
     "GlobalTransitionAnalyticsDTO",
     "HealthResponse",
+    "LoginRequest",
+    "LoginResponse",
     "MarketDataResponse",
     "MarketItemResponse",
     "MarketListResponse",
@@ -335,7 +391,10 @@ __all__ = [
     "RankedDestinationDTO",
     "ReadinessResponse",
     "RegimeProfileDTO",
+    "RegisterRequest",
+    "RegisterResponse",
     "RootResponse",
     "TransitionProbabilityDTO",
     "TransitionRegimeAnalyticsDTO",
+    "UserResponse",
 ]

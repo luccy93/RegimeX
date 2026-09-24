@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import get_settings
 from app.core.database.base import Base
 # Import all persistence models to populate Base.metadata
+import app.modules.identity_access.infrastructure.persistence.models  # noqa: F401
 import app.modules.market_data.infrastructure.persistence.models  # noqa: F401
 
 config = context.config

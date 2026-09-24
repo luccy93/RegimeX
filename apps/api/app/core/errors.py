@@ -412,6 +412,13 @@ def register_error_handlers(app: FastAPI) -> None:
     except ImportError:
         pass
 
+    try:
+        from app.modules.identity_access.domain.errors import IdentityAccessError
+
+        app.add_exception_handler(IdentityAccessError, regimex_error_handler)  # type: ignore[arg-type]
+    except ImportError:
+        pass
+
     # 3. HTTP and Validation errors
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]

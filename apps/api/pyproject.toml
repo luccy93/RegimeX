@@ -36,6 +36,10 @@ anyio = ">=4.3.0,<5.0.0"
 yfinance = ">=0.2.40,<1.0.0"
 pandas = ">=2.2.0,<3.0.0"
 
+# Security & Authentication (V17 Commit 01)
+argon2-cffi = ">=23.1.0,<26.0.0"
+pyjwt = ">=2.8.0,<3.0.0"
+
 # =============================================================================
 # Optional dependencies — installed in their respective volumes
 # =============================================================================
@@ -127,7 +131,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN"]
+"tests/**/*.py" = ["S101", "ANN", "S105", "S106"]
 "app/main.py" = ["ANN001", "ANN202"]  # middleware call_next typing workaround
 
 [tool.mypy]

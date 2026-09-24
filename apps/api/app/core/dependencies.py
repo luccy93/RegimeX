@@ -21,9 +21,15 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.modules.identity_access.application.dto import UserDTO
+from app.modules.identity_access.application.service import AuthenticationService
+from app.modules.identity_access.domain.password import PasswordHasher
+from app.modules.identity_access.domain.repository import UserRepository
+from app.modules.identity_access.domain.token import TokenService
 from app.modules.market_data.application.registry import ProviderRegistry
 from app.modules.market_data.application.service import MarketDataService
 from app.modules.market_data.domain.provider import MarketDataProvider
@@ -170,29 +176,110 @@ def readiness_checker_dep() -> ReadinessChecker:
 
 ReadinessCheckerDep = Annotated[ReadinessChecker, Depends(readiness_checker_dep)]
 
-# The following stubs document the intended dependency pattern for resources
-# that will be implemented in later volumes. They are intentionally not
-# implemented here to respect volume scope boundaries.
 
-# REDIS CLIENT (V05 — Market Data Engine)
-# ----------------------------------------
-# async def get_redis_client() -> AsyncGenerator[Redis, None]:
-#     """Provide a Redis client for caching and rate limiting."""
-#     client = Redis.from_url(get_settings().redis_url)
-#     try:
-#         yield client
-#     finally:
-#         await client.aclose()
-#
-# RedisClient = Annotated[Redis, Depends(get_redis_client)]
+# =============================================================================
+# Authentication & Identity Dependencies (V17 Commit 01)
+# =============================================================================
 
-# CURRENT USER PRINCIPAL (V15 — Identity & Access)
-# --------------------------------------------------
-# async def get_current_user(
-#     token: str = Depends(oauth2_scheme),
-#     db: DatabaseSession = None,
-# ) -> UserPrincipal:
-#     """Authenticate and return the current user principal."""
-#     ...
-#
-# CurrentUser = Annotated[UserPrincipal, Depends(get_current_user)]
+http_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description="JWT Bearer token authorization header: 'Authorization: Bearer <token>'",
+)
+
+
+def password_hasher_dep() -> PasswordHasher:
+    """Provide the Argon2id password hasher implementation."""
+    from app.modules.identity_access.infrastructure.security.hasher import (
+        Argon2PasswordHasher,
+    )
+
+    return Argon2PasswordHasher()
+
+
+PasswordHasherDep = Annotated[PasswordHasher, Depends(password_hasher_dep)]
+
+
+def token_service_dep(settings: SettingsDep) -> TokenService:
+    """Provide the JWT token signing and decoding service."""
+    from app.modules.identity_access.infrastructure.security.token import (
+        JwtTokenService,
+    )
+
+    return JwtTokenService(
+        secret=settings.auth_jwt_secret,
+        algorithm=settings.auth_jwt_algorithm,
+        expire_minutes=settings.auth_access_token_expire_minutes,
+    )
+
+
+TokenServiceDep = Annotated[TokenService, Depends(token_service_dep)]
+
+
+def user_repository_dep(session: DatabaseSessionDep) -> UserRepository:
+    """Provide the User persistence repository bound to the current database session."""
+    from app.modules.identity_access.infrastructure.persistence.repository import (
+        SQLAlchemyUserRepository,
+    )
+
+    return SQLAlchemyUserRepository(session=session)
+
+
+UserRepositoryDep = Annotated[UserRepository, Depends(user_repository_dep)]
+
+
+def auth_service_dep(
+    user_repository: UserRepositoryDep,
+    password_hasher: PasswordHasherDep,
+    token_service: TokenServiceDep,
+    settings: SettingsDep,
+) -> AuthenticationService:
+    """Provide the AuthenticationService application orchestration facade."""
+    from app.modules.identity_access.application.service import (
+        AuthenticationService,
+    )
+
+    return AuthenticationService(
+        user_repository=user_repository,
+        password_hasher=password_hasher,
+        token_service=token_service,
+        access_token_expire_minutes=settings.auth_access_token_expire_minutes,
+    )
+
+
+AuthServiceDep = Annotated[AuthenticationService, Depends(auth_service_dep)]
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer_scheme)],
+    auth_service: AuthServiceDep,
+) -> UserDTO:
+    """
+    FastAPI dependency extracting, validating, and resolving the authenticated User identity.
+
+    Extracts Bearer token from the standard Authorization header, validates signature
+    and claims, and returns the authenticated User identity.
+
+    Raises:
+        AuthenticationRequiredError (HTTP 401): If the header is missing, malformed,
+            or if the token is invalid or expired.
+    """
+    from app.modules.identity_access.domain.errors import (
+        AuthenticationRequiredError,
+    )
+
+    if credentials is None:
+        raise AuthenticationRequiredError("Authentication is required.")
+
+    if credentials.scheme.lower() != "bearer":
+        raise AuthenticationRequiredError("Invalid authentication scheme. Bearer scheme required.")
+
+    token = credentials.credentials.strip() if credentials.credentials else ""
+    if not token:
+        raise AuthenticationRequiredError("Authentication token cannot be empty.")
+
+    user = await auth_service.get_current_user_from_token(token)
+    return user
+
+
+CurrentUserDep = Annotated[UserDTO, Depends(get_current_user)]
+CurrentUser = CurrentUserDep

@@ -15,7 +15,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     # -------------------------------------------------------------------------
@@ -92,15 +93,38 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     secret_key: str = Field(
         default="CHANGE_ME_in_production_use_32+_random_bytes",
+        validation_alias=AliasChoices(
+            "AUTH_JWT_SECRET",
+            "REGIMEX_AUTH_JWT_SECRET",
+            "REGIMEX_SECRET_KEY",
+            "SECRET_KEY",
+        ),
         description=(
             "Application secret key for signing tokens. "
-            "MUST be set via REGIMEX_SECRET_KEY in production. "
+            "MUST be set via AUTH_JWT_SECRET or REGIMEX_SECRET_KEY in production. "
             'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
         ),
     )
-    jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
+    jwt_algorithm: str = Field(
+        default="HS256",
+        validation_alias=AliasChoices(
+            "AUTH_JWT_ALGORITHM",
+            "REGIMEX_AUTH_JWT_ALGORITHM",
+            "REGIMEX_JWT_ALGORITHM",
+            "JWT_ALGORITHM",
+        ),
+        description="JWT signing algorithm (HS256, HS384, HS512)",
+    )
     access_token_expire_minutes: int = Field(
-        default=60, ge=1, description="JWT access token lifetime in minutes"
+        default=60,
+        ge=1,
+        validation_alias=AliasChoices(
+            "AUTH_ACCESS_TOKEN_EXPIRE_MINUTES",
+            "REGIMEX_AUTH_ACCESS_TOKEN_EXPIRE_MINUTES",
+            "REGIMEX_ACCESS_TOKEN_EXPIRE_MINUTES",
+            "ACCESS_TOKEN_EXPIRE_MINUTES",
+        ),
+        description="JWT access token lifetime in minutes",
     )
 
     # -------------------------------------------------------------------------
@@ -130,33 +154,62 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Validators
     # -------------------------------------------------------------------------
-    @field_validator("debug", mode="before")
+    @field_validator("debug")
     @classmethod
     def debug_forbidden_in_production(cls, value: bool, info: object) -> bool:
         """Prevent debug mode from being enabled in production."""
-        # We access info.data carefully — env may not be set yet during validation
         data = getattr(info, "data", {})
         env = data.get("env")
-        if env == Environment.PRODUCTION and value:
+        if env == Environment.PRODUCTION and value is True:
             raise ValueError("debug=True is not allowed in production environments.")
         return value
 
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def validate_jwt_algorithm(cls, value: str) -> str:
+        """Validate that the JWT signing algorithm is an approved HMAC algorithm."""
+        allowed = {"HS256", "HS384", "HS512"}
+        val_upper = value.upper()
+        if val_upper not in allowed:
+            raise ValueError(
+                f"Unsupported or insecure JWT algorithm: '{value}'. "
+                f"Allowed algorithms: {sorted(allowed)}"
+            )
+        return val_upper
+
     @field_validator("secret_key", mode="before")
     @classmethod
-    def secret_key_must_not_be_default_in_production(cls, value: str, info: object) -> str:
+    def secret_key_must_not_be_default_in_production(cls, value: str | None, info: object) -> str:
         """Fail fast if the default placeholder secret key is used in production."""
         data = getattr(info, "data", {})
         env = data.get("env")
-        if env == Environment.PRODUCTION and "CHANGE_ME" in value:
-            raise ValueError(
-                "REGIMEX_SECRET_KEY must be set to a secure random value in production. "
-                'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
-            )
-        return value
+        if env == Environment.PRODUCTION:
+            if not value or not str(value).strip():
+                raise ValueError("REGIMEX_SECRET_KEY / AUTH_JWT_SECRET must be set in production.")
+            val_str = str(value)
+            if "CHANGE_ME" in val_str or len(val_str) < 32:
+                raise ValueError(
+                    "REGIMEX_SECRET_KEY / AUTH_JWT_SECRET must be set to a secure random value "
+                    "of at least 32 characters in production. "
+                    'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
+                )
+        return value or "CHANGE_ME_in_production_use_32+_random_bytes"
 
     # -------------------------------------------------------------------------
     # Convenience properties
     # -------------------------------------------------------------------------
+    @property
+    def auth_jwt_secret(self) -> str:
+        return self.secret_key
+
+    @property
+    def auth_jwt_algorithm(self) -> str:
+        return self.jwt_algorithm
+
+    @property
+    def auth_access_token_expire_minutes(self) -> int:
+        return self.access_token_expire_minutes
+
     @property
     def is_development(self) -> bool:
         return self.env == Environment.DEVELOPMENT
