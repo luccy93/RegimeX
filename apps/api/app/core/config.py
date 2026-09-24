@@ -60,9 +60,24 @@ class Settings(BaseSettings):
     api_host: str = Field(default="0.0.0.0", description="API server bind host")  # noqa: S104
     api_port: int = Field(default=8000, ge=1, le=65535, description="API server bind port")
     api_v1_prefix: str = Field(default="/api/v1", description="URL prefix for API version 1")
-    allowed_origins: list[str] = Field(
+    allowed_origins: list[str] | str = Field(
         default=["http://localhost:3000"],
-        description="CORS allowed origins. Expand via REGIMEX_ALLOWED_ORIGINS in production.",
+        validation_alias=AliasChoices(
+            "CORS_ALLOWED_ORIGINS",
+            "REGIMEX_CORS_ALLOWED_ORIGINS",
+            "REGIMEX_ALLOWED_ORIGINS",
+            "ALLOWED_ORIGINS",
+        ),
+        description="CORS allowed origins. Expand via CORS_ALLOWED_ORIGINS in production.",
+    )
+    max_request_body_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        ge=1024,
+        validation_alias=AliasChoices(
+            "MAX_REQUEST_BODY_BYTES",
+            "REGIMEX_MAX_REQUEST_BODY_BYTES",
+        ),
+        description="Maximum permitted request body size in bytes (boundary protection)",
     )
 
     # -------------------------------------------------------------------------
@@ -126,6 +141,24 @@ class Settings(BaseSettings):
         ),
         description="JWT access token lifetime in minutes",
     )
+    jwt_issuer: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "AUTH_JWT_ISSUER",
+            "REGIMEX_AUTH_JWT_ISSUER",
+            "JWT_ISSUER",
+        ),
+        description="Optional expected JWT issuer claim (iss)",
+    )
+    jwt_audience: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "AUTH_JWT_AUDIENCE",
+            "REGIMEX_AUTH_JWT_AUDIENCE",
+            "JWT_AUDIENCE",
+        ),
+        description="Optional expected JWT audience claim (aud)",
+    )
 
     # -------------------------------------------------------------------------
     # Background workers (Celery — validated in V05)
@@ -154,6 +187,30 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Validators
     # -------------------------------------------------------------------------
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def validate_allowed_origins(cls, value: object, info: object) -> list[str]:
+        """Validate and normalize allowed CORS origins, rejecting wildcard origins in production."""
+        origins: list[str] = []
+        if isinstance(value, str):
+            origins = [s.strip() for s in value.split(",") if s.strip()]
+        elif isinstance(value, (list, tuple, set)):
+            origins = [str(s).strip() for s in value if str(s).strip()]
+        else:
+            origins = ["http://localhost:3000"]
+
+        if not origins:
+            origins = ["http://localhost:3000"]
+
+        data = getattr(info, "data", {})
+        env = data.get("env")
+        if env == Environment.PRODUCTION:
+            if "*" in origins:
+                raise ValueError(
+                    "Wildcard '*' CORS origins are strictly prohibited in production environments."
+                )
+        return origins
+
     @field_validator("debug")
     @classmethod
     def debug_forbidden_in_production(cls, value: bool, info: object) -> bool:
@@ -209,6 +266,18 @@ class Settings(BaseSettings):
     @property
     def auth_access_token_expire_minutes(self) -> int:
         return self.access_token_expire_minutes
+
+    @property
+    def auth_jwt_issuer(self) -> str | None:
+        return self.jwt_issuer
+
+    @property
+    def auth_jwt_audience(self) -> str | None:
+        return self.jwt_audience
+
+    @property
+    def auth_max_request_body_bytes(self) -> int:
+        return self.max_request_body_bytes
 
     @property
     def is_development(self) -> bool:

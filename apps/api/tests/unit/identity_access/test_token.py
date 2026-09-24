@@ -140,3 +140,92 @@ class TestJwtTokenService:
             JwtTokenService(secret=TEST_SECRET, expire_minutes=0)
         with pytest.raises(ValueError):
             JwtTokenService(secret=TEST_SECRET, expire_minutes=-10)
+
+    def test_negative_leeway_rejected_at_initialization(self) -> None:
+        """Verify negative leeway seconds is rejected."""
+        with pytest.raises(ValueError) as exc_info:
+            JwtTokenService(secret=TEST_SECRET, leeway_seconds=-1)
+        assert "Leeway seconds cannot be negative" in str(exc_info.value)
+
+    def test_invalid_uuid_subject_raises_invalid_token_error(self) -> None:
+        """Verify token with non-UUID 'sub' claim is rejected."""
+        service = JwtTokenService(secret=TEST_SECRET)
+        payload = {
+            "sub": "not-a-valid-uuid-format",
+            "email": "badsub@regimex.org",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 3600,
+        }
+        token_bad_sub = jwt.encode(payload, TEST_SECRET, algorithm="HS256")
+        with pytest.raises(InvalidTokenError) as exc_info:
+            service.decode_access_token(token_bad_sub)
+        assert "valid UUID" in str(exc_info.value)
+
+    def test_exp_less_than_or_equal_to_iat_rejected(self) -> None:
+        """Verify token with exp <= iat is rejected as invalid."""
+        service = JwtTokenService(secret=TEST_SECRET)
+        future_ts = int(time.time()) + 3600
+        payload = {
+            "sub": str(uuid.uuid4()),
+            "email": "clockskew@regimex.org",
+            "iat": future_ts + 100,  # iat after exp
+            "exp": future_ts,
+        }
+        token_skewed_timestamps = jwt.encode(payload, TEST_SECRET, algorithm="HS256")
+        with pytest.raises(InvalidTokenError):
+            service.decode_access_token(token_skewed_timestamps)
+
+    def test_issuer_validation_success_and_mismatch(self) -> None:
+        """Verify configured issuer requirement validates matching tokens and rejects mismatch."""
+        service = JwtTokenService(secret=TEST_SECRET, issuer="regimex-auth-service")
+        user_id = str(uuid.uuid4())
+
+        # Matching issuer
+        token = service.create_access_token(subject=user_id, email="issuer@regimex.org")
+        claims = service.decode_access_token(token)
+        assert claims.iss == "regimex-auth-service"
+
+        # Mismatched issuer
+        mismatched_payload = {
+            "sub": user_id,
+            "email": "attacker@regimex.org",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 3600,
+            "iss": "rogue-issuer",
+        }
+        mismatched_token = jwt.encode(mismatched_payload, TEST_SECRET, algorithm="HS256")
+        with pytest.raises(InvalidTokenError):
+            service.decode_access_token(mismatched_token)
+
+        # Missing issuer when configured
+        no_iss_payload = {
+            "sub": user_id,
+            "email": "noiss@regimex.org",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 3600,
+        }
+        no_iss_token = jwt.encode(no_iss_payload, TEST_SECRET, algorithm="HS256")
+        with pytest.raises(InvalidTokenError):
+            service.decode_access_token(no_iss_token)
+
+    def test_audience_validation_success_and_mismatch(self) -> None:
+        """Verify configured audience requirement validates matching tokens and rejects mismatch."""
+        service = JwtTokenService(secret=TEST_SECRET, audience="regimex-api-client")
+        user_id = str(uuid.uuid4())
+
+        # Matching audience
+        token = service.create_access_token(subject=user_id, email="audience@regimex.org")
+        claims = service.decode_access_token(token)
+        assert claims.aud == "regimex-api-client"
+
+        # Mismatched audience
+        mismatched_payload = {
+            "sub": user_id,
+            "email": "attacker@regimex.org",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 3600,
+            "aud": "rogue-audience",
+        }
+        mismatched_token = jwt.encode(mismatched_payload, TEST_SECRET, algorithm="HS256")
+        with pytest.raises(InvalidTokenError):
+            service.decode_access_token(mismatched_token)

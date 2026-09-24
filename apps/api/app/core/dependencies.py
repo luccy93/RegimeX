@@ -209,6 +209,8 @@ def token_service_dep(settings: SettingsDep) -> TokenService:
         secret=settings.auth_jwt_secret,
         algorithm=settings.auth_jwt_algorithm,
         expire_minutes=settings.auth_access_token_expire_minutes,
+        issuer=settings.auth_jwt_issuer,
+        audience=settings.auth_jwt_audience,
     )
 
 
@@ -254,7 +256,7 @@ async def get_current_user(
     auth_service: AuthServiceDep,
 ) -> UserDTO:
     """
-    FastAPI dependency extracting, validating, and resolving the authenticated User identity.
+    FastAPI authentication dependency.
 
     Extracts Bearer token from the standard Authorization header, validates signature
     and claims, and returns the authenticated User identity.
@@ -281,5 +283,44 @@ async def get_current_user(
     return user
 
 
-CurrentUserDep = Annotated[UserDTO, Depends(get_current_user)]
-CurrentUser = CurrentUserDep
+def authorization_checker_dep() -> object:
+    """Provide the authorization checker enforcing active account policies."""
+    from app.modules.identity_access.domain.authorization import (
+        AuthorizationChecker,
+    )
+
+    return AuthorizationChecker()
+
+
+AuthorizationCheckerDep = Annotated[object, Depends(authorization_checker_dep)]
+
+
+async def require_authenticated_user(
+    current_user: Annotated[UserDTO, Depends(get_current_user)],
+    authorizer: AuthorizationCheckerDep,
+) -> UserDTO:
+    """
+    FastAPI authorization dependency.
+
+    Enforces the complete authorization boundary:
+      1. Authentication: Validates token and resolves identity.
+      2. Authorization: Verifies account is active and satisfies configured policies.
+
+    Returns:
+        UserDTO: The authenticated and authorized user principal.
+
+    Raises:
+        IdentityAccessError / AuthorizationError: If authorization check fails.
+    """
+    from app.modules.identity_access.domain.authorization import (
+        AuthorizationChecker,
+    )
+
+    if isinstance(authorizer, AuthorizationChecker):
+        authorizer.authorize(current_user)
+    return current_user
+
+
+RequireAuthenticatedUser = Annotated[UserDTO, Depends(require_authenticated_user)]
+CurrentUserDep = RequireAuthenticatedUser
+CurrentUser = RequireAuthenticatedUser

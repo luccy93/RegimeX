@@ -13,12 +13,11 @@ Architecture:
 from __future__ import annotations
 
 import logging
-import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -27,6 +26,7 @@ from app.api.v1.router import v1_router
 from app.core.config import get_settings
 from app.core.dependencies import ReadinessCheckerDep
 from app.core.errors import register_error_handlers
+from app.core.middleware import register_security_middlewares
 
 logger = logging.getLogger(__name__)
 
@@ -122,28 +122,23 @@ def create_app() -> FastAPI:
     # -------------------------------------------------------------------------
 
     # CORS — safe configuration adhering to security baseline
-    allow_creds = "*" not in settings.allowed_origins
+    origins = (
+        settings.allowed_origins
+        if isinstance(settings.allowed_origins, list)
+        else [settings.allowed_origins]
+    )
+    allow_creds = "*" not in origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.allowed_origins,
+        allow_origins=origins,
         allow_credentials=allow_creds,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         expose_headers=["X-Request-ID"],
     )
 
-    # Request ID middleware — attach correlation ID to every request/response
-    @app.middleware("http")
-    async def attach_request_id(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        incoming_id = request.headers.get("X-Request-ID")
-        clean_id = incoming_id.strip() if incoming_id else ""
-        request_id = clean_id if clean_id else str(uuid.uuid4())
-        request.state.request_id = request_id
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+    # Security headers, sanitized Request-ID tracking, and request boundary middleware
+    register_security_middlewares(app)
 
     # -------------------------------------------------------------------------
     # Exception Handlers

@@ -99,6 +99,8 @@ class TokenClaims(BaseModel):
     iat: datetime = Field(description="Issued at timestamp (UTC)")
     exp: datetime = Field(description="Expiration timestamp (UTC)")
     jti: str = Field(description="Unique token identifier for replay protection")
+    iss: str | None = Field(default=None, description="Token issuer identifier")
+    aud: str | None = Field(default=None, description="Token audience identifier")
 
     @field_validator("iat", "exp")
     @classmethod

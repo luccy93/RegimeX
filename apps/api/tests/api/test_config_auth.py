@@ -93,3 +93,30 @@ class TestAuthConfigValidation:
         assert settings.auth_jwt_secret == "custom-secret-key-that-is-long-enough-32-chars"
         assert settings.auth_jwt_algorithm == "HS384"
         assert settings.auth_access_token_expire_minutes == 120
+
+    def test_issuer_and_audience_configuration(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify AUTH_JWT_ISSUER and AUTH_JWT_AUDIENCE are parsed properly."""
+        monkeypatch.setenv("AUTH_JWT_ISSUER", "regimex-api-auth")
+        monkeypatch.setenv("AUTH_JWT_AUDIENCE", "regimex-frontend")
+
+        settings = Settings()
+        assert settings.auth_jwt_issuer == "regimex-api-auth"
+        assert settings.auth_jwt_audience == "regimex-frontend"
+
+    def test_max_request_body_bytes_configuration(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify MAX_REQUEST_BODY_BYTES is parsed and accessible."""
+        monkeypatch.setenv("MAX_REQUEST_BODY_BYTES", "2097152")
+        settings = Settings()
+        assert settings.auth_max_request_body_bytes == 2097152
+
+    def test_cors_allowed_origins_comma_separated_parsing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify comma-separated string for CORS_ALLOWED_ORIGINS is parsed into list."""
+        monkeypatch.setenv(
+            "CORS_ALLOWED_ORIGINS",
+            "https://app.regimex.org, https://admin.regimex.org",
+        )
+        settings = Settings()
+        assert "https://app.regimex.org" in settings.allowed_origins
+        assert "https://admin.regimex.org" in settings.allowed_origins

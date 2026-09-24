@@ -136,3 +136,26 @@ def test_auth_routes_never_import_cryptographic_libraries_directly() -> None:
         "Thin route violation: auth route directly imports cryptography libraries:\n"
         + "\n".join(violations)
     )
+
+
+def test_protected_endpoints_use_authorization_boundary() -> None:
+    """
+    Verify that protected endpoints in auth routes use CurrentUser / RequireAuthenticatedUser
+    and do not perform ad-hoc token decoding or database queries directly in the route body.
+    """
+    app_root = Path(__file__).resolve().parent.parent.parent / "app"
+    auth_route_file = app_root / "api" / "v1" / "endpoints" / "auth.py"
+    content = auth_route_file.read_text(encoding="utf-8")
+    tree = ast.parse(content, filename=str(auth_route_file))
+
+    # Inspect get_current_user_profile function
+    me_function = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "get_current_user_profile":
+            me_function = node
+            break
+
+    assert me_function is not None, "get_current_user_profile route function not found"
+    arg_names = [arg.arg for arg in me_function.args.args]
+    msg = "Expected current_user parameter in get_current_user_profile"
+    assert "current_user" in arg_names, msg

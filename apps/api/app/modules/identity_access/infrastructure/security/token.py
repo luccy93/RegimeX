@@ -43,6 +43,9 @@ class JwtTokenService(TokenService):
         secret: str,
         algorithm: str = "HS256",
         expire_minutes: int = 60,
+        issuer: str | None = None,
+        audience: str | None = None,
+        leeway_seconds: int = 0,
     ) -> None:
         if not secret or not secret.strip():
             raise ValueError("JWT signing secret cannot be empty.")
@@ -56,9 +59,15 @@ class JwtTokenService(TokenService):
         if expire_minutes <= 0:
             raise ValueError("Access token expiration minutes must be greater than zero.")
 
+        if leeway_seconds < 0:
+            raise ValueError("Leeway seconds cannot be negative.")
+
         self._secret = secret
         self._algorithm = algo_upper
         self._expire_minutes = expire_minutes
+        self._issuer = issuer.strip() if issuer and issuer.strip() else None
+        self._audience = audience.strip() if audience and audience.strip() else None
+        self._leeway_seconds = leeway_seconds
 
     def create_access_token(self, subject: str, email: str) -> str:
         """
@@ -70,6 +79,8 @@ class JwtTokenService(TokenService):
           - iat: Issued at timestamp (seconds)
           - exp: Expiration timestamp (seconds)
           - jti: Unique token identifier
+          - iss: Issuer identifier (if configured)
+          - aud: Audience identifier (if configured)
         """
         if not subject:
             raise ValueError("Subject identifier cannot be empty.")
@@ -88,6 +99,11 @@ class JwtTokenService(TokenService):
             "jti": token_id,
         }
 
+        if self._issuer is not None:
+            payload["iss"] = self._issuer
+        if self._audience is not None:
+            payload["aud"] = self._audience
+
         return jwt.encode(
             payload=payload,
             key=self._secret,
@@ -98,6 +114,14 @@ class JwtTokenService(TokenService):
         """
         Decode and validate a signed JWT access token.
 
+        Enforces:
+          - Cryptographic signature check with configured secret and allowed algorithm.
+          - Rejection of 'none' algorithm and unauthorized algorithms.
+          - Mandatory claims: sub, exp, iat.
+          - exp > iat validation.
+          - Valid UUID subject check.
+          - Issuer and audience verification when configured.
+
         Raises:
             ExpiredTokenError: If the token is expired.
             InvalidTokenError: If signature, claims, or format are invalid.
@@ -105,36 +129,67 @@ class JwtTokenService(TokenService):
         if not token or not token.strip():
             raise InvalidTokenError("Authentication token cannot be empty.")
 
+        decode_options: dict[str, Any] = {
+            "require": ["sub", "exp", "iat"],
+            "verify_signature": True,
+            "verify_exp": True,
+            "verify_iat": True,
+        }
+        decode_kwargs: dict[str, Any] = {
+            "jwt": token.strip(),
+            "key": self._secret,
+            "algorithms": [self._algorithm],
+            "options": decode_options,
+            "leeway": self._leeway_seconds,
+        }
+
+        if self._issuer is not None:
+            decode_options["verify_iss"] = True
+            decode_kwargs["issuer"] = self._issuer
+        if self._audience is not None:
+            decode_options["verify_aud"] = True
+            decode_kwargs["audience"] = self._audience
+
         try:
-            payload = jwt.decode(
-                jwt=token.strip(),
-                key=self._secret,
-                algorithms=[self._algorithm],
-                options={
-                    "require": ["sub", "exp", "iat"],
-                    "verify_exp": True,
-                    "verify_iat": True,
-                },
-            )
+            payload = jwt.decode(**decode_kwargs)
         except ExpiredSignatureError as e:
             raise ExpiredTokenError("Authentication token has expired.") from e
-        except PyJWTInvalidTokenError as e:
+        except (
+            jwt.InvalidIssuerError,
+            jwt.InvalidAudienceError,
+            jwt.InvalidAlgorithmError,
+            jwt.MissingRequiredClaimError,
+            PyJWTInvalidTokenError,
+        ) as e:
             raise InvalidTokenError(f"Invalid authentication token: {e}") from e
         except Exception as e:
             logger.warning("Unexpected error decoding token: %s", type(e).__name__)
             raise InvalidTokenError("Malformed or undecodable authentication token.") from e
 
         sub = payload.get("sub")
-        email = payload.get("email", "")
+        if not sub or not isinstance(sub, str):
+            raise InvalidTokenError("Token 'sub' claim must be a non-empty string.")
+
+        try:
+            uuid.UUID(sub)
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise InvalidTokenError("Token 'sub' claim must be a valid UUID string.") from exc
+
         iat_raw = payload.get("iat")
         exp_raw = payload.get("exp")
+        if not isinstance(iat_raw, (int, float)) or not isinstance(exp_raw, (int, float)):
+            raise InvalidTokenError("Token timestamps 'iat' and 'exp' must be numeric.")
+
+        if exp_raw <= iat_raw:
+            raise InvalidTokenError(
+                "Token expiration ('exp') must be strictly greater than issue time ('iat')."
+            )
+
+        email = payload.get("email", "")
         jti = payload.get("jti") or str(uuid.uuid4())
 
-        if not sub:
-            raise InvalidTokenError("Token missing required 'sub' claim.")
-
-        iat = datetime.fromtimestamp(iat_raw, tz=UTC) if iat_raw else datetime.now(tz=UTC)
-        exp = datetime.fromtimestamp(exp_raw, tz=UTC) if exp_raw else datetime.now(tz=UTC)
+        iat = datetime.fromtimestamp(iat_raw, tz=UTC)
+        exp = datetime.fromtimestamp(exp_raw, tz=UTC)
 
         return TokenClaims(
             sub=str(sub),
@@ -142,4 +197,6 @@ class JwtTokenService(TokenService):
             iat=iat,
             exp=exp,
             jti=str(jti),
+            iss=payload.get("iss"),
+            aud=payload.get("aud"),
         )

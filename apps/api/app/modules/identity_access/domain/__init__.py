@@ -6,6 +6,12 @@ Exports pure domain entities, repository/service protocols, and exception contra
 
 from __future__ import annotations
 
+from app.modules.identity_access.domain.authorization import (
+    ActiveUserPolicy,
+    AuthorizationChecker,
+    AuthorizationError,
+    AuthorizationPolicy,
+)
 from app.modules.identity_access.domain.errors import (
     AuthenticationRequiredError,
     DuplicateEmailError,
@@ -29,7 +35,11 @@ from app.modules.identity_access.domain.token import TokenService
 
 __all__ = [
     "MIN_PASSWORD_LENGTH",
+    "ActiveUserPolicy",
     "AuthenticationRequiredError",
+    "AuthorizationChecker",
+    "AuthorizationError",
+    "AuthorizationPolicy",
     "DuplicateEmailError",
     "ExpiredTokenError",
     "IdentityAccessError",
