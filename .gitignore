@@ -23,6 +23,7 @@ sdist/
 develop-eggs/
 .installed.cfg
 lib/
+!apps/web/lib/
 lib64/
 MANIFEST
 *.pyc

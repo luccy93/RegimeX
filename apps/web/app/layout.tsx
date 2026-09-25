@@ -1,19 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  themeColor: "#090d16",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: {
-    default: "RegimeX — Market Intelligence Platform",
+    default: "RegimeX — Open-Source Market Intelligence Platform",
     template: "%s | RegimeX",
   },
   description:
     "Open-source market intelligence and quantitative research platform. " +
-    "Understand market regimes, analyze risk, and explore quantitative strategies.",
+    "Understand market regimes, analyze transition dynamics, and evaluate systematic cross-regime risk.",
   keywords: [
-    "market regime",
-    "quantitative finance",
+    "market regimes",
+    "quantitative research",
     "regime detection",
-    "risk analytics",
+    "transition analytics",
+    "risk intelligence",
     "backtesting",
     "open-source",
   ],
@@ -25,13 +33,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * Root layout — applied to all pages.
- *
- * Architecture boundary:
- *   - This layout wraps the entire application.
- *   - Global styles are imported here.
- *   - No business logic belongs in the layout.
- *   - Authentication context providers will be added in V15.
+ * Root Layout — wraps the entire RegimeX web application.
  */
 export default function RootLayout({
   children,

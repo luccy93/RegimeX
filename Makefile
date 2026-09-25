@@ -27,7 +27,7 @@
 
 .PHONY: help quality \
         backend-test backend-lint backend-format backend-format-check backend-typecheck \
-        frontend-lint frontend-typecheck frontend-build \
+        frontend-lint frontend-typecheck frontend-test frontend-build \
         pre-commit-install pre-commit-run \
         clean
 
@@ -60,7 +60,7 @@ help: ## Show this help message
 # =============================================================================
 
 quality: backend-format-check backend-lint backend-typecheck backend-test \
-         frontend-lint frontend-typecheck ## Run all quality checks (full gate)
+         frontend-lint frontend-typecheck frontend-test ## Run all quality checks (full gate)
 	@echo ""
 	@echo "✅  All quality gates passed."
 	@echo ""
@@ -107,6 +107,11 @@ frontend-typecheck: ## Run TypeScript compiler (no emit)
 	@echo "▶  Frontend: running tsc --noEmit..."
 	cd $(WEB_DIR) && npm run type-check
 	@echo "✅  Frontend type check passed."
+
+frontend-test: ## Run frontend test suite
+	@echo "▶  Frontend: running tests..."
+	cd $(WEB_DIR) && npm test
+	@echo "✅  Frontend tests passed."
 
 frontend-build: ## Run Next.js production build
 	@echo "▶  Frontend: running production build..."
