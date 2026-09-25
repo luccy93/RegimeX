@@ -1,10 +1,36 @@
 /* ==========================================================================
-   RegimeX Web Platform — Production Design Tokens & Global Stylesheet
-   Volume 18 — Commit 01
+   RegimeX Web Platform — Production Design System
+   Volume 18 — Commit 02
    ==========================================================================
-   Establishes centralized semantic design tokens, responsive typography,
-   accessible focus states, motion controls, and shell layout primitives.
-   Vanilla CSS architecture adhering to technical, analytical design principles.
+   Establishes the complete, production-grade RegimeX design system.
+   Architecture:
+     1.  Centralized Design Tokens (extended from Commit 01)
+     2.  Reset & Normalization
+     3.  Accessible Focus Indicators & Skip Link
+     4.  Typography Utilities
+     5.  Reduced Motion Preferences
+     6.  UI Primitives: Buttons
+     7.  UI Primitives: Cards
+     8.  UI Primitives: Badges
+     9.  UI Primitives: Inputs & Selects
+     10. UI Primitives: Alerts
+     11. UI Primitives: Spinners & Skeletons
+     12. UI Primitives: Empty & Error States
+     13. Navigation & Breadcrumbs
+     14. Application Shell Layout
+     15. Landing Page Styles
+     16. Console Pages & Modules
+     17. Error & Not-Found Pages
+     18. Commit 02: Separator
+     19. Commit 02: Tooltip
+     20. Commit 02: StatusIndicator
+     21. Commit 02: MetricCard
+     22. Commit 02: DataTable
+     23. Commit 02: ChartSlot
+     24. Commit 02: Glassmorphism Utilities
+     25. Commit 02: Domain Regime Colors
+     26. Commit 02: Enhanced Motion & Keyframes
+     27. Responsive Breakpoints
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -123,6 +149,93 @@
   --sidebar-width: 16.5rem;
   --max-width-content: 80rem;
   --max-width-prose: 68ch;
+  --max-width-narrow: 48rem;
+
+  /* --- Commit 02: Extended Token Set --- */
+
+  /* Extended Borders */
+  --border-strong: #334155;
+  --border-glass: rgba(255, 255, 255, 0.06);
+
+  /* Extended Typography */
+  --text-disabled: #475569;
+
+  /* Extended Brand */
+  --primary-light: #3b82f6;
+  --primary-subtle: rgba(37, 99, 235, 0.12);
+
+  /* Glassmorphism Surfaces */
+  --surface-glass: rgba(15, 23, 42, 0.72);
+  --surface-glass-strong: rgba(15, 23, 42, 0.88);
+  --surface-overlay: rgba(9, 13, 22, 0.6);
+
+  /* Extended Shadows */
+  --shadow-glass: 0 4px 24px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.25);
+  --shadow-glow-green: 0 0 20px rgba(16, 185, 129, 0.2);
+  --shadow-glow-red: 0 0 20px rgba(239, 68, 68, 0.2);
+
+  /* Extended Motion */
+  --duration-instant: 75ms;
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --duration-very-slow: 500ms;
+  --easing-in: cubic-bezier(0.4, 0, 1, 1);
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Domain: Market Regime Colors */
+  --regime-bullish: #10b981;
+  --regime-bullish-subtle: rgba(16, 185, 129, 0.15);
+  --regime-bullish-fg: #34d399;
+  --regime-bullish-border: rgba(16, 185, 129, 0.35);
+
+  --regime-bearish: #ef4444;
+  --regime-bearish-subtle: rgba(239, 68, 68, 0.15);
+  --regime-bearish-fg: #f87171;
+  --regime-bearish-border: rgba(239, 68, 68, 0.35);
+
+  --regime-transitioning: #f59e0b;
+  --regime-transitioning-subtle: rgba(245, 158, 11, 0.15);
+  --regime-transitioning-fg: #fbbf24;
+  --regime-transitioning-border: rgba(245, 158, 11, 0.35);
+
+  --regime-neutral: #94a3b8;
+  --regime-neutral-subtle: rgba(148, 163, 184, 0.15);
+  --regime-neutral-fg: #cbd5e1;
+  --regime-neutral-border: rgba(148, 163, 184, 0.3);
+
+  --regime-high-vol: #c084fc;
+  --regime-high-vol-subtle: rgba(192, 132, 252, 0.12);
+  --regime-high-vol-fg: #d8b4fe;
+
+  --regime-low-vol: #22d3ee;
+  --regime-low-vol-subtle: rgba(34, 211, 238, 0.12);
+  --regime-low-vol-fg: #67e8f9;
+
+  /* Data Visualization Chart Palette */
+  --chart-0: #3b82f6;
+  --chart-1: #10b981;
+  --chart-2: #f59e0b;
+  --chart-3: #8b5cf6;
+  --chart-4: #ef4444;
+  --chart-5: #22d3ee;
+  --chart-6: #f97316;
+  --chart-7: #a3e635;
+
+  /* Chart Layout */
+  --chart-min-height: 14rem;
+  --chart-height: 22rem;
+  --chart-tall-height: 32rem;
+
+  /* Chart Structural Colors */
+  --chart-grid: rgba(30, 41, 59, 0.6);
+  --chart-axis: rgba(100, 116, 139, 0.6);
+  --chart-crosshair: rgba(96, 165, 250, 0.4);
+  --chart-bg: var(--surface-muted);
 }
 
 /* --------------------------------------------------------------------------
@@ -1397,4 +1510,655 @@ code, kbd, samp, pre {
   .landing-nav {
     display: none;
   }
+}
+
+/* --------------------------------------------------------------------------
+   18. Commit 02: Separator
+   -------------------------------------------------------------------------- */
+.ui-separator {
+  border: none;
+  flex-shrink: 0;
+}
+
+.ui-separator-horizontal {
+  width: 100%;
+  height: 1px;
+  background-color: var(--border);
+  margin: var(--spacing-4) 0;
+}
+
+.ui-separator-vertical {
+  width: 1px;
+  height: 100%;
+  background-color: var(--border);
+  align-self: stretch;
+  margin: 0 var(--spacing-4);
+  display: inline-block;
+}
+
+/* --------------------------------------------------------------------------
+   19. Commit 02: Tooltip
+   -------------------------------------------------------------------------- */
+.ui-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-tooltip-bubble {
+  position: absolute;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  padding: 0.375rem var(--spacing-3);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--foreground);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.ui-tooltip-wrapper:hover .ui-tooltip-bubble,
+.ui-tooltip-wrapper:focus-within .ui-tooltip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Placement variants */
+.ui-tooltip-top {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ui-tooltip-bottom {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ui-tooltip-left {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ui-tooltip-right {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* --------------------------------------------------------------------------
+   20. Commit 02: StatusIndicator
+   -------------------------------------------------------------------------- */
+.ui-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.ui-status-sm {
+  gap: var(--spacing-1);
+}
+
+.ui-status-md {
+  gap: var(--spacing-2);
+}
+
+.ui-status-lg {
+  gap: var(--spacing-3);
+}
+
+.ui-status-dot {
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.ui-status-sm .ui-status-dot { width: 6px; height: 6px; }
+.ui-status-md .ui-status-dot { width: 8px; height: 8px; }
+.ui-status-lg .ui-status-dot { width: 10px; height: 10px; }
+
+/* Domain regime dot colors */
+.ui-status-dot-bullish      { background-color: var(--regime-bullish); }
+.ui-status-dot-bearish      { background-color: var(--regime-bearish); }
+.ui-status-dot-transitioning{ background-color: var(--regime-transitioning); }
+.ui-status-dot-neutral      { background-color: var(--regime-neutral); }
+
+/* System health dot colors */
+.ui-status-dot-active    { background-color: var(--success); }
+.ui-status-dot-degraded  { background-color: var(--warning); }
+.ui-status-dot-offline   { background-color: var(--danger); }
+.ui-status-dot-pending   { background-color: var(--primary-light); }
+
+/* Pulse animation */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+  50%       { opacity: 0.75; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0); }
+}
+
+.ui-status-dot-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+.ui-status-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  line-height: 1;
+}
+
+.ui-status-sm .ui-status-label { font-size: 0.65rem; }
+.ui-status-lg .ui-status-label { font-size: var(--font-size-sm); }
+
+/* --------------------------------------------------------------------------
+   21. Commit 02: MetricCard
+   -------------------------------------------------------------------------- */
+.metric-card {
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.metric-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.metric-card-sm  { padding: var(--spacing-3) var(--spacing-4); gap: var(--spacing-1); }
+.metric-card-md  { padding: var(--spacing-4) var(--spacing-5); gap: var(--spacing-2); }
+.metric-card-lg  { padding: var(--spacing-5) var(--spacing-6); gap: var(--spacing-3); }
+
+.metric-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.metric-card-icon {
+  font-size: var(--font-size-base);
+  line-height: 1;
+}
+
+.metric-card-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.metric-card-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.metric-card-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--foreground);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.metric-card-sm  .metric-card-value { font-size: var(--font-size-lg); }
+.metric-card-lg  .metric-card-value { font-size: var(--font-size-3xl); }
+
+.metric-card-unit {
+  font-size: var(--font-size-sm);
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-medium);
+}
+
+.metric-card-change {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.metric-trend-positive {
+  color: var(--success-foreground);
+}
+
+.metric-trend-negative {
+  color: var(--danger-foreground);
+}
+
+.metric-trend-flat {
+  color: var(--muted-foreground);
+}
+
+.metric-trend-arrow {
+  font-size: 0.7rem;
+}
+
+.metric-card-change-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card-description {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: var(--line-height-base);
+}
+
+.metric-card-sparkline {
+  margin-top: var(--spacing-2);
+  height: 3rem;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   22. Commit 02: DataTable
+   -------------------------------------------------------------------------- */
+.data-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.data-table-caption {
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-align: left;
+  caption-side: top;
+}
+
+.data-table-head {
+  background-color: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table-th {
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.data-table-th-center { text-align: center; }
+.data-table-th-right  { text-align: right; }
+
+.data-table-body {
+  background-color: var(--surface);
+}
+
+.data-table-row {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color var(--transition-fast);
+}
+
+.data-table-row:last-child {
+  border-bottom: none;
+}
+
+.data-table-row:hover {
+  background-color: var(--surface-muted);
+}
+
+.data-table-striped .data-table-row-alt {
+  background-color: var(--surface-muted);
+}
+
+.data-table-sticky-header .data-table-head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.data-table-td {
+  padding: var(--spacing-3) var(--spacing-4);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+
+.data-table-td-center { text-align: center; }
+.data-table-td-right  { text-align: right; }
+
+.data-table-empty-cell {
+  padding: var(--spacing-8);
+}
+
+/* --------------------------------------------------------------------------
+   23. Commit 02: ChartSlot
+   -------------------------------------------------------------------------- */
+.chart-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.chart-slot-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.chart-slot-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+}
+
+.chart-slot-description {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.chart-slot-body {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--chart-bg);
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.chart-slot-body-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-slot-body-placeholder {
+  border-style: dashed;
+}
+
+.chart-slot-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  height: 100%;
+}
+
+.chart-slot-loading-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.chart-slot-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  height: 100%;
+  padding: var(--spacing-6);
+}
+
+.chart-slot-placeholder-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.chart-slot-placeholder-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.chart-slot-placeholder-version {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background-color: var(--surface-muted);
+  padding: 0.25rem var(--spacing-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+}
+
+/* --------------------------------------------------------------------------
+   24. Commit 02: Glassmorphism Utilities
+   -------------------------------------------------------------------------- */
+
+/**
+ * Glass card — frosted glass surface with blur and translucency.
+ * Use sparingly for modal overlays, floating panels, or hero accents.
+ */
+.glass-card {
+  background-color: var(--surface-glass);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-glass);
+  border-radius: var(--radius-xl);
+}
+
+.glass-card-strong {
+  background-color: var(--surface-glass-strong);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+}
+
+/** Glow accent utilities — primary / green / red */
+.glow-primary { box-shadow: var(--shadow-glow); }
+.glow-success  { box-shadow: var(--shadow-glow-green); }
+.glow-danger   { box-shadow: var(--shadow-glow-red); }
+
+/** Gradient text — for hero headlines */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary-light), var(--regime-low-vol));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-warm {
+  background: linear-gradient(135deg, var(--warning-foreground), var(--danger-foreground));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* --------------------------------------------------------------------------
+   25. Commit 02: Domain Regime Color Utilities
+   -------------------------------------------------------------------------- */
+
+/* Regime badge / tag utilities */
+.regime-bullish {
+  background-color: var(--regime-bullish-subtle);
+  color: var(--regime-bullish-fg);
+  border: 1px solid var(--regime-bullish-border);
+}
+
+.regime-bearish {
+  background-color: var(--regime-bearish-subtle);
+  color: var(--regime-bearish-fg);
+  border: 1px solid var(--regime-bearish-border);
+}
+
+.regime-transitioning {
+  background-color: var(--regime-transitioning-subtle);
+  color: var(--regime-transitioning-fg);
+  border: 1px solid var(--regime-transitioning-border);
+}
+
+.regime-neutral {
+  background-color: var(--regime-neutral-subtle);
+  color: var(--regime-neutral-fg);
+  border: 1px solid var(--regime-neutral-border);
+}
+
+.regime-high-vol {
+  background-color: var(--regime-high-vol-subtle);
+  color: var(--regime-high-vol-fg);
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.regime-low-vol {
+  background-color: var(--regime-low-vol-subtle);
+  color: var(--regime-low-vol-fg);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+/* Foreground-only regime text colors */
+.text-regime-bullish       { color: var(--regime-bullish-fg); }
+.text-regime-bearish       { color: var(--regime-bearish-fg); }
+.text-regime-transitioning { color: var(--regime-transitioning-fg); }
+.text-regime-neutral       { color: var(--regime-neutral-fg); }
+.text-regime-high-vol      { color: var(--regime-high-vol-fg); }
+.text-regime-low-vol       { color: var(--regime-low-vol-fg); }
+
+/* Chart color swatch utilities */
+.chart-color-0 { color: var(--chart-0); }
+.chart-color-1 { color: var(--chart-1); }
+.chart-color-2 { color: var(--chart-2); }
+.chart-color-3 { color: var(--chart-3); }
+.chart-color-4 { color: var(--chart-4); }
+.chart-color-5 { color: var(--chart-5); }
+.chart-color-6 { color: var(--chart-6); }
+.chart-color-7 { color: var(--chart-7); }
+
+.chart-bg-0 { background-color: var(--chart-0); }
+.chart-bg-1 { background-color: var(--chart-1); }
+.chart-bg-2 { background-color: var(--chart-2); }
+.chart-bg-3 { background-color: var(--chart-3); }
+.chart-bg-4 { background-color: var(--chart-4); }
+.chart-bg-5 { background-color: var(--chart-5); }
+.chart-bg-6 { background-color: var(--chart-6); }
+.chart-bg-7 { background-color: var(--chart-7); }
+
+/* --------------------------------------------------------------------------
+   26. Commit 02: Enhanced Motion & Keyframes
+   -------------------------------------------------------------------------- */
+
+/** Fade in from below — use for page transitions and panel mounts */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/** Fade in — generic opacity reveal */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/** Scale in — for popovers and tooltips */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/** Slide in from right — sidebar / drawer */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/** Slide in from left */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/** Ticker / data flash — used for live market value updates */
+@keyframes data-flash-positive {
+  0%   { background-color: transparent; }
+  20%  { background-color: var(--regime-bullish-subtle); }
+  100% { background-color: transparent; }
+}
+
+@keyframes data-flash-negative {
+  0%   { background-color: transparent; }
+  20%  { background-color: var(--regime-bearish-subtle); }
+  100% { background-color: transparent; }
+}
+
+/** Animation utility classes */
+.animate-fade-in-up {
+  animation: fade-in-up var(--duration-slow) var(--easing-out) both;
+}
+
+.animate-fade-in {
+  animation: fade-in var(--duration-base) var(--easing-out) both;
+}
+
+.animate-scale-in {
+  animation: scale-in var(--duration-fast) var(--easing-out) both;
+}
+
+/* Staggered animation delays for list items */
+.animate-delay-1 { animation-delay: 50ms; }
+.animate-delay-2 { animation-delay: 100ms; }
+.animate-delay-3 { animation-delay: 150ms; }
+.animate-delay-4 { animation-delay: 200ms; }
+.animate-delay-5 { animation-delay: 250ms; }
+.animate-delay-6 { animation-delay: 300ms; }
+
+/* Flash utility */
+.data-flash-positive { animation: data-flash-positive 800ms var(--easing-out); }
+.data-flash-negative { animation: data-flash-negative 800ms var(--easing-out); }
+
+/* Additional accessibility utility */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar styling — WebKit engines */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-muted);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Selection highlight */
+::selection {
+  background-color: var(--primary-subtle);
+  color: var(--foreground);
 }
