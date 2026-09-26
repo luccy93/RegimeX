@@ -177,3 +177,31 @@ export function formatNumber(
     maximumFractionDigits: decimals,
   }).format(value);
 }
+
+/**
+ * Formats a transition probability value (0 to 1).
+ * Example: formatProbability(0.724) -> "0.724"
+ */
+export function formatProbability(
+  value: number | null | undefined,
+  decimals: number = 3
+): string {
+  if (value === null || value === undefined || typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(decimals);
+}
+
+/**
+ * Formats a transition entropy value in nats.
+ * Example: formatEntropy(1.241) -> "1.24 nats"
+ */
+export function formatEntropy(
+  value: number | null | undefined,
+  decimals: number = 2
+): string {
+  if (value === null || value === undefined || typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+  return `${value.toFixed(decimals)} nats`;
+}

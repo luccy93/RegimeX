@@ -1,18 +1,84 @@
-import React from "react";
-import Link from "next/link";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import React, { Suspense } from "react";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
+import { RegimeWorkspace } from "@/components/regimes/RegimeWorkspace";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 
 export const metadata = {
-  title: "Regimes",
-  description: "RegimeX Market Regime Detection & Transitions",
+  title: "Regime Analytics",
+  description: "Analyze market regimes, persistence, transitions, and regime-specific behavior.",
 };
+
+function RegimeWorkspaceSkeleton() {
+  return (
+    <div className="regime-workspace-skeleton" aria-busy="true" aria-label="Loading regime analytics workspace">
+      {/* Header skeleton */}
+      <div className="regime-workspace-header">
+        <div className="regime-header-top-row">
+          <div>
+            <Skeleton shape="text" style={{ width: "16rem", height: "2rem", marginBottom: "0.5rem" }} />
+            <Skeleton shape="text" style={{ width: "24rem", height: "1rem" }} />
+          </div>
+          <Skeleton shape="rect" style={{ width: "14rem", height: "2.5rem" }} />
+        </div>
+        <Skeleton shape="rect" style={{ height: "3.5rem", marginTop: "1rem" }} />
+      </div>
+
+      {/* Current regime card skeleton */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <Card variant="elevated">
+          <CardHeader>
+            <div className="flex-between">
+              <Skeleton shape="text" style={{ width: "14rem", height: "1.5rem" }} />
+              <Skeleton shape="rect" style={{ width: "6rem", height: "1.75rem" }} />
+            </div>
+            <Skeleton shape="text" style={{ width: "20rem", marginTop: "0.5rem" }} />
+          </CardHeader>
+          <CardContent>
+            <div className="current-regime-metrics-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="metric-box">
+                  <Skeleton shape="text" style={{ width: "60%", marginBottom: "0.5rem" }} />
+                  <Skeleton shape="text" style={{ width: "80%", height: "1.5rem" }} />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Distribution skeleton */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <Card variant="elevated">
+          <CardHeader>
+            <Skeleton shape="text" style={{ width: "12rem" }} />
+            <Skeleton shape="text" style={{ width: "18rem" }} />
+          </CardHeader>
+          <CardContent>
+            <Skeleton shape="rect" style={{ height: "2.5rem", marginBottom: "1rem" }} />
+            <Skeleton shape="rect" style={{ height: "4.5rem" }} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tables skeleton */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <Card variant="elevated">
+          <CardHeader>
+            <Skeleton shape="text" style={{ width: "16rem" }} />
+          </CardHeader>
+          <CardContent>
+            <Skeleton shape="rect" style={{ height: "12rem" }} />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 export default function RegimesPage() {
   return (
-    <div className="module-placeholder-page">
+    <div className="regime-analytics-page">
       <Breadcrumbs
         items={[
           { label: "Console", href: "/app" },
@@ -20,46 +86,9 @@ export default function RegimesPage() {
         ]}
       />
 
-      <header className="page-header">
-        <div className="page-header-title-row">
-          <h1 className="page-title">Regime Detection &amp; Transitions</h1>
-          <Badge variant="outline" size="md">
-            Scheduled for V19
-          </Badge>
-        </div>
-        <p className="page-subtitle">
-          Canonical regime classifications, duration metrics, and Markovian transition analytics.
-        </p>
-      </header>
-
-      <Card variant="elevated">
-        <CardHeader>
-          <CardTitle>Module Foundation Established</CardTitle>
-          <CardDescription>
-            Gaussian Mixture Models, Hidden Markov Models, KMeans ensemble voters, and empirical transition matrices are verified.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="placeholder-info-box">
-            <p className="placeholder-info-text">
-              Interactive regime timeline charts, cluster scatter plots, and transition heatmaps
-              are scheduled for Volume 19 (Regime Intelligence Dashboard).
-            </p>
-            <div className="placeholder-api-endpoints">
-              <span className="placeholder-api-label">Connected API Endpoints:</span>
-              <ul className="placeholder-api-list">
-                <li><code>GET /api/v1/markets/{`{symbol}`}/regime</code> — Current regime &amp; profiles</li>
-                <li><code>GET /api/v1/markets/{`{symbol}`}/regime/transitions</code> — Empirical transition matrices</li>
-              </ul>
-            </div>
-          </div>
-          <div className="placeholder-actions">
-            <Link href="/app">
-              <Button variant="secondary">Back to Overview</Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<RegimeWorkspaceSkeleton />}>
+        <RegimeWorkspace />
+      </Suspense>
     </div>
   );
 }
