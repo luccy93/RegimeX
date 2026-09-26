@@ -19,6 +19,9 @@ import { MarketPriceChart } from "./MarketPriceChart";
 import { CurrentRegimeCard } from "./CurrentRegimeCard";
 import { RegimeHistory } from "./RegimeHistory";
 import { DataHealth } from "./DataHealth";
+import { RegimeOverlayChart } from "./RegimeOverlayChart";
+import { RegimeTimeline } from "./RegimeTimeline";
+import { RegimeConfidenceBar } from "./RegimeConfidenceBar";
 
 export function MarketDashboard() {
   const searchParams = useSearchParams();
@@ -46,6 +49,9 @@ export function MarketDashboard() {
   const [isLoadingRegime, setIsLoadingRegime] = useState<boolean>(false);
   const [regimeError, setRegimeError] = useState<string | null>(null);
   const [regimeRequestId, setRegimeRequestId] = useState<string | undefined>(undefined);
+
+  // Synchronized hover state for regime visualization charts
+  const [syncedHoverIndex, setSyncedHoverIndex] = useState<number | null>(null);
 
   // Active AbortControllers to cancel requests and prevent race conditions
   const activeFetchController = useRef<AbortController | null>(null);
@@ -283,7 +289,7 @@ export function MarketDashboard() {
         isLoading={isLoadingMarketData || isLoadingRegime}
       />
 
-      {/* 3. Primary Market Price Chart */}
+      {/* 3. Primary Market Price Chart (original, always shown) */}
       <section className="market-dashboard-section" aria-label="Market Price Chart">
         <MarketPriceChart
           symbol={selectedSymbol}
@@ -296,6 +302,45 @@ export function MarketDashboard() {
           onRetry={() => fetchMarketDetails(selectedSymbol)}
         />
       </section>
+
+      {/* 3b. Interactive Regime Visualization Layer */}
+      {regimeData && marketData && marketData.items.length > 0 && (
+        <section
+          className="market-dashboard-section market-dashboard-regime-viz"
+          aria-label="Interactive Regime Visualization"
+        >
+          {/* Regime-Colored Price Chart with background bands */}
+          <RegimeOverlayChart
+            symbol={selectedSymbol}
+            bars={marketData.items}
+            regimeData={regimeData}
+            currency={activeMarket?.currency || "USD"}
+            interval={marketData.interval || "1d"}
+            isLoading={isLoadingMarketData || isLoadingRegime}
+            error={marketDataError}
+            requestId={marketDataRequestId}
+            onRetry={() => fetchMarketDetails(selectedSymbol)}
+            onHoverIndex={setSyncedHoverIndex}
+            hoveredIndex={syncedHoverIndex}
+          />
+
+          {/* Regime Timeline Swimlane */}
+          <RegimeTimeline
+            symbol={selectedSymbol}
+            bars={marketData.items}
+            regimeData={regimeData}
+            isLoading={isLoadingRegime}
+            onHoverIndex={setSyncedHoverIndex}
+            hoveredIndex={syncedHoverIndex}
+          />
+
+          {/* Regime Confidence Gauge */}
+          <RegimeConfidenceBar
+            regimeData={regimeData}
+            isLoading={isLoadingRegime}
+          />
+        </section>
+      )}
 
       {/* 4. Regime Context & Historical Breakdown */}
       <section

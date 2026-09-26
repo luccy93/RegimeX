@@ -6,3 +6,7 @@ export { MarketPriceChart } from "./MarketPriceChart";
 export { CurrentRegimeCard } from "./CurrentRegimeCard";
 export { RegimeHistory } from "./RegimeHistory";
 export { DataHealth } from "./DataHealth";
+export { RegimeTimeline } from "./RegimeTimeline";
+export { RegimeOverlayChart } from "./RegimeOverlayChart";
+export { RegimeLegend } from "./RegimeLegend";
+export { RegimeConfidenceBar } from "./RegimeConfidenceBar";

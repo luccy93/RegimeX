@@ -102,3 +102,67 @@ export function getRegimeBadgeClass(label: string | null | undefined): string {
 export function getRegimeColorIndex(regimeId: number): number {
   return Math.abs(regimeId) % 8;
 }
+
+/**
+ * Regime color entry for direct rendering (SVG, Canvas).
+ */
+export interface RegimeColorEntry {
+  /** CSS variable reference (e.g. "var(--regime-bullish)") */
+  cssVar: string;
+  /** Raw hex color for use in SVG/Canvas where CSS vars are inaccessible */
+  hex: string;
+  /** Subtle/translucent version for background bands */
+  hexSubtle: string;
+  /** CSS variable for subtle variant */
+  cssVarSubtle: string;
+}
+
+/**
+ * Hardcoded color palette keyed by regime "class", indexed by
+ * chart palette index for canonical regime IDs.
+ */
+const REGIME_PALETTE: RegimeColorEntry[] = [
+  { cssVar: "var(--chart-0)", hex: "#3b82f6", hexSubtle: "rgba(59, 130, 246, 0.12)", cssVarSubtle: "var(--chart-0)" },
+  { cssVar: "var(--chart-1)", hex: "#10b981", hexSubtle: "rgba(16, 185, 129, 0.12)", cssVarSubtle: "var(--chart-1)" },
+  { cssVar: "var(--chart-2)", hex: "#f59e0b", hexSubtle: "rgba(245, 158, 11, 0.12)", cssVarSubtle: "var(--chart-2)" },
+  { cssVar: "var(--chart-3)", hex: "#8b5cf6", hexSubtle: "rgba(139, 92, 246, 0.12)", cssVarSubtle: "var(--chart-3)" },
+  { cssVar: "var(--chart-4)", hex: "#ef4444", hexSubtle: "rgba(239, 68, 68, 0.12)", cssVarSubtle: "var(--chart-4)" },
+  { cssVar: "var(--chart-5)", hex: "#22d3ee", hexSubtle: "rgba(34, 211, 238, 0.12)", cssVarSubtle: "var(--chart-5)" },
+  { cssVar: "var(--chart-6)", hex: "#f97316", hexSubtle: "rgba(249, 115, 22, 0.12)", cssVarSubtle: "var(--chart-6)" },
+  { cssVar: "var(--chart-7)", hex: "#a3e635", hexSubtle: "rgba(163, 230, 53, 0.12)", cssVarSubtle: "var(--chart-7)" },
+];
+
+/** Semantic regime color map keyed by label keyword. */
+const SEMANTIC_REGIME_COLORS: Record<string, RegimeColorEntry> = {
+  BULL: { cssVar: "var(--regime-bullish)", hex: "#10b981", hexSubtle: "rgba(16, 185, 129, 0.12)", cssVarSubtle: "var(--regime-bullish-subtle)" },
+  RISK_ON: { cssVar: "var(--regime-bullish)", hex: "#10b981", hexSubtle: "rgba(16, 185, 129, 0.12)", cssVarSubtle: "var(--regime-bullish-subtle)" },
+  LOW_VOL: { cssVar: "var(--regime-low-vol)", hex: "#22d3ee", hexSubtle: "rgba(34, 211, 238, 0.12)", cssVarSubtle: "var(--regime-low-vol-subtle)" },
+  BEAR: { cssVar: "var(--regime-bearish)", hex: "#ef4444", hexSubtle: "rgba(239, 68, 68, 0.12)", cssVarSubtle: "var(--regime-bearish-subtle)" },
+  RISK_OFF: { cssVar: "var(--regime-bearish)", hex: "#ef4444", hexSubtle: "rgba(239, 68, 68, 0.12)", cssVarSubtle: "var(--regime-bearish-subtle)" },
+  TRANSITION: { cssVar: "var(--regime-transitioning)", hex: "#f59e0b", hexSubtle: "rgba(245, 158, 11, 0.12)", cssVarSubtle: "var(--regime-transitioning-subtle)" },
+  HIGH_VOL: { cssVar: "var(--regime-high-vol)", hex: "#c084fc", hexSubtle: "rgba(192, 132, 252, 0.12)", cssVarSubtle: "var(--regime-high-vol-subtle)" },
+  NEUTRAL: { cssVar: "var(--regime-neutral)", hex: "#94a3b8", hexSubtle: "rgba(148, 163, 184, 0.12)", cssVarSubtle: "var(--regime-neutral-subtle)" },
+  SIDEWAYS: { cssVar: "var(--regime-neutral)", hex: "#94a3b8", hexSubtle: "rgba(148, 163, 184, 0.12)", cssVarSubtle: "var(--regime-neutral-subtle)" },
+};
+
+/**
+ * Returns the rendering color for a regime, resolving semantic labels first,
+ * then falling back to palette index for canonical regime IDs.
+ */
+export function getRegimeColor(
+  label: string | null | undefined,
+  regimeId: number
+): RegimeColorEntry {
+  if (label) {
+    const upper = label.toUpperCase();
+    for (const [keyword, entry] of Object.entries(SEMANTIC_REGIME_COLORS)) {
+      if (upper.includes(keyword)) {
+        return entry;
+      }
+    }
+  }
+
+  // Fallback to chart palette by index
+  const idx = getRegimeColorIndex(regimeId);
+  return REGIME_PALETTE[idx];
+}
