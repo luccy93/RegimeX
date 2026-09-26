@@ -25,6 +25,9 @@ export async function resolve(specifier, context, defaultResolve) {
   if (target === "next/image") {
     return defaultResolve("next/image.js", context);
   }
+  if (target === "next/navigation") {
+    return defaultResolve("next/navigation.js", context);
+  }
 
   // Handle path alias "@/..." -> "<cwd>/..."
   if (target.startsWith("@/")) {

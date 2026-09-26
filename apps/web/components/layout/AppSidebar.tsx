@@ -17,8 +17,7 @@ export function AppSidebar({ currentPath = "/app" }: AppSidebarProps) {
       href: "/app/markets",
       label: "Markets",
       icon: "📈",
-      isComingSoon: true,
-      statusText: "V19",
+      isComingSoon: false,
     },
     {
       href: "/app/regimes",
