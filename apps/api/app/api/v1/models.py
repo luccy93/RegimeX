@@ -321,6 +321,303 @@ class MarketTransitionResponse(BaseModel):
 
 
 # =============================================================================
+# Portfolio Risk Analytics Responses (V13 / V20)
+# =============================================================================
+
+
+class ReturnStatisticsDTO(BaseModel):
+    """Descriptive summary statistics of discrete returns."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mean_return: float = Field(description="Sample arithmetic mean of returns")
+    median_return: float = Field(description="Sample median of returns")
+    standard_deviation: float = Field(description="Sample standard deviation (ddof=1)")
+    minimum_return: float = Field(description="Minimum return observed")
+    maximum_return: float = Field(description="Maximum return observed")
+    observation_count: int = Field(description="Total observations analyzed")
+
+
+class VolatilityMetricsDTO(BaseModel):
+    """Realized and annualized volatility metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    period_volatility: float = Field(
+        description="Realized sample standard deviation of period returns"
+    )
+    annualized_volatility: float | None = Field(
+        default=None, description="Annualized volatility scaled by sqrt(periods_per_year)"
+    )
+    periods_per_year: float | None = Field(
+        default=None, description="Explicit annualization factor disclosed"
+    )
+
+
+class DownsideRiskMetricsDTO(BaseModel):
+    """Downside deviation and semi-variance relative to target return."""
+
+    model_config = ConfigDict(frozen=True)
+
+    downside_deviation: float = Field(
+        description="Root-mean-square downside deviation below target"
+    )
+    semi_variance: float = Field(description="Mean squared downside deviation below target")
+    target_return: float = Field(default=0.0, description="Minimum acceptable return benchmark")
+    observation_count: int = Field(description="Total returns evaluated")
+    downside_observation_count: int = Field(
+        description="Observations falling strictly below target"
+    )
+
+
+class DrawdownMetricsDTO(BaseModel):
+    """Historical peak-to-trough maximum drawdown dynamics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    max_drawdown: float = Field(
+        description="Maximum drawdown value as a signed non-positive float (e.g. -0.176)"
+    )
+    drawdown_magnitude: float = Field(description="Absolute magnitude |max_drawdown| >= 0")
+    peak_value: float = Field(description="Peak asset price preceding max drawdown")
+    trough_value: float = Field(description="Trough price at lowest point of max drawdown")
+    peak_timestamp: datetime | None = Field(default=None, description="Timestamp of the peak")
+    trough_timestamp: datetime | None = Field(default=None, description="Timestamp of the trough")
+    recovery_timestamp: datetime | None = Field(
+        default=None, description="Timestamp of recovery to peak"
+    )
+    is_recovered: bool = Field(
+        default=False, description="True if price recovered above prior peak"
+    )
+
+
+class VaRMetricsDTO(BaseModel):
+    """Loss-oriented Value at Risk (VaR) metric."""
+
+    model_config = ConfigDict(frozen=True)
+
+    confidence_level: float = Field(description="Evaluated confidence level e.g. 0.95")
+    var_loss: float = Field(description="Loss threshold expressed as positive loss e.g. 0.048")
+    return_quantile: float = Field(
+        description="Empirical return quantile (signed negative e.g. -0.048)"
+    )
+    method: str = Field(default="historical", description="Calculation method")
+    tail_observations: int = Field(description="Number of observations at or below quantile")
+    total_observations: int = Field(description="Total observations in sample")
+
+
+class ExpectedShortfallMetricsDTO(BaseModel):
+    """Loss-oriented Expected Shortfall (CVaR) conditional on exceeding VaR."""
+
+    model_config = ConfigDict(frozen=True)
+
+    confidence_level: float = Field(description="Evaluated confidence level e.g. 0.95")
+    expected_shortfall: float = Field(
+        description="Conditional expected loss expressed as positive float"
+    )
+    tail_mean_return: float = Field(
+        description="Mean return of tail observations (signed negative)"
+    )
+    var_loss: float = Field(description="Corresponding VaR threshold")
+    tail_observations: int = Field(description="Number of tail observations")
+    total_observations: int = Field(description="Total observations in sample")
+
+
+class RiskPricePointDTO(BaseModel):
+    """Point-in-time price and drawdown observation for visualization."""
+
+    model_config = ConfigDict(frozen=True)
+
+    timestamp: datetime = Field(description="Observation timestamp (UTC)")
+    price: float = Field(description="Historical asset price")
+    period_return: float | None = Field(default=None, description="Period arithmetic return")
+    running_peak: float = Field(description="Historical running peak up to this timestamp")
+    drawdown: float = Field(description="Signed drawdown relative to running peak")
+
+
+class MarketRiskResponse(BaseModel):
+    """Complete portfolio risk intelligence response for a queried instrument."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(description="Queried instrument symbol")
+    series_id: str = Field(description="Risk evaluation series identifier")
+    observation_count: int = Field(description="Total return observations analyzed")
+    start_timestamp: datetime | None = Field(
+        default=None, description="Start timestamp of risk sample"
+    )
+    end_timestamp: datetime | None = Field(default=None, description="End timestamp of risk sample")
+    computed_at: datetime = Field(description="UTC timestamp when analytics were evaluated")
+    return_statistics: ReturnStatisticsDTO = Field(description="Return descriptive statistics")
+    volatility: VolatilityMetricsDTO = Field(description="Volatility analytics")
+    downside_risk: DownsideRiskMetricsDTO = Field(
+        description="Downside deviation and semi-variance"
+    )
+    drawdown: DrawdownMetricsDTO = Field(description="Peak-to-trough maximum drawdown metrics")
+    var_metrics: dict[str, VaRMetricsDTO] = Field(
+        description="Value at Risk mapped by confidence level string e.g. '0.90', '0.95', '0.99'"
+    )
+    expected_shortfall_metrics: dict[str, ExpectedShortfallMetricsDTO] = Field(
+        description="Expected Shortfall mapped by confidence level string"
+    )
+    price_points: list[RiskPricePointDTO] = Field(
+        default_factory=list, description="Historical price and drawdown series for chart rendering"
+    )
+
+
+# =============================================================================
+# Systematic Backtesting Responses (V14 / V15 / V20)
+# =============================================================================
+
+
+class EquitySnapshotDTO(BaseModel):
+    """Point-in-time snapshot of backtest equity curve."""
+
+    model_config = ConfigDict(frozen=True)
+
+    timestamp: datetime = Field(description="Snapshot timestamp (UTC)")
+    cash: float = Field(description="Cash balance")
+    market_value: float = Field(description="Marked-to-market position value")
+    equity: float = Field(description="Total portfolio equity (cash + market_value)")
+    fees: float = Field(default=0.0, description="Cumulative execution commissions and fees")
+    realized_pnl: float = Field(default=0.0, description="Cumulative realized profit/loss")
+    unrealized_pnl: float = Field(default=0.0, description="Open mark-to-market profit/loss")
+    drawdown: float = Field(
+        default=0.0, description="Signed point-in-time drawdown from running peak"
+    )
+
+
+class TradeStatisticsDTO(BaseModel):
+    """Descriptive trade execution statistics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    order_count: int = Field(description="Total orders requested")
+    fill_count: int = Field(description="Total order fills executed")
+    completed_trade_count: int = Field(description="Total position exits realizing PnL")
+    winning_trades: int = Field(description="Number of profitable closed trades")
+    losing_trades: int = Field(description="Number of loss-making closed trades")
+    win_rate: float | None = Field(default=None, description="Winning trades / completed trades")
+    total_realized_pnl: float = Field(default=0.0, description="Cumulative realized PnL")
+    average_trade_pnl: float | None = Field(
+        default=None, description="Average PnL per completed trade"
+    )
+    largest_winning_trade: float | None = Field(
+        default=None, description="Largest single winning trade"
+    )
+    largest_losing_trade: float | None = Field(
+        default=None, description="Largest single losing trade"
+    )
+
+
+class BacktestTradeDTO(BaseModel):
+    """Executed trade fill record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    timestamp: datetime = Field(description="Execution fill timestamp (UTC)")
+    symbol: str = Field(description="Instrument symbol")
+    side: str = Field(description="Order side: BUY or SELL")
+    quantity: float = Field(description="Filled share quantity")
+    price: float = Field(description="Execution price")
+    commission: float = Field(description="Commission paid")
+    slippage: float = Field(description="Slippage cost applied")
+
+
+class BacktestRiskMetricsDTO(BaseModel):
+    """Risk analytics evaluated on the backtest equity curve."""
+
+    model_config = ConfigDict(frozen=True)
+
+    volatility: float = Field(description="Sample standard deviation of equity curve returns")
+    annualized_volatility: float | None = Field(
+        default=None, description="Annualized equity volatility"
+    )
+    maximum_drawdown: float = Field(description="Maximum peak-to-trough drawdown (signed <= 0)")
+    drawdown_magnitude: float = Field(description="Drawdown magnitude |max_drawdown|")
+    var_95: float | None = Field(default=None, description="Loss-oriented VaR at 95% confidence")
+    expected_shortfall_95: float | None = Field(
+        default=None, description="Loss-oriented ES at 95% confidence"
+    )
+
+
+class MethodologyDTO(BaseModel):
+    """Documentation of quantitative assumptions and rules."""
+
+    model_config = ConfigDict(frozen=True)
+
+    common_period_policy: str = Field(description="Policy for evaluation window")
+    trade_definition: str = Field(description="Definition of completed trade")
+    risk_engine_source: str = Field(description="Risk calculation engine")
+    return_type: str = Field(description="Return compounding convention")
+    execution_engine_source: str = Field(description="Execution simulator")
+
+
+class MetricDefinitionDTO(BaseModel):
+    """Machine-readable definition of a reported performance metric."""
+
+    model_config = ConfigDict(frozen=True)
+
+    metric_name: str = Field(description="Canonical metric key")
+    description: str = Field(description="Functional definition")
+    unit: str = Field(description="Unit of measurement")
+    direction_semantics: str = Field(description="Directional interpretation guidance")
+    source: str = Field(description="Originating engine or component")
+
+
+class PerformanceReportDTO(BaseModel):
+    """Self-contained reproducible performance report metadata."""
+
+    model_config = ConfigDict(frozen=True)
+
+    report_id: str = Field(description="Deterministic report unique identifier")
+    report_version: str = Field(description="Report schema version")
+    generated_at: datetime | None = Field(default=None, description="UTC generation timestamp")
+    methodology: MethodologyDTO = Field(description="Quantitative methodology")
+    limitations: list[str] = Field(
+        default_factory=list, description="Explicit caveats and analytical scope"
+    )
+    metric_definitions: list[MetricDefinitionDTO] = Field(
+        default_factory=list, description="Canonical metric definitions"
+    )
+
+
+class MarketBacktestResponse(BaseModel):
+    """Complete systematic backtesting simulation response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(description="Queried instrument symbol")
+    strategy_id: str = Field(description="Evaluated strategy identifier")
+    strategy_name: str = Field(description="Human-readable strategy name")
+    execution_convention: str = Field(
+        description="Execution timing convention: CURRENT_CLOSE or NEXT_OPEN"
+    )
+    initial_cash: float = Field(description="Starting capital")
+    final_cash: float = Field(description="Ending unallocated cash balance")
+    final_equity: float = Field(description="Ending total portfolio equity")
+    total_return: float = Field(description="Cumulative return over simulation")
+    annualized_return: float | None = Field(
+        default=None, description="Compound annual growth rate (CAGR)"
+    )
+    absolute_pnl: float = Field(description="Net wealth change: final_equity - initial_cash")
+    realized_pnl: float = Field(description="Gross realized profit or loss from completed exits")
+    unrealized_pnl: float = Field(description="Open position marked-to-market profit or loss")
+    total_fees: float = Field(description="Total execution fees and commissions incurred")
+    slippage_rate: float = Field(description="Configured slippage rate")
+    commission_rate: float = Field(description="Configured commission rate")
+    trades: TradeStatisticsDTO = Field(description="Execution trade statistics")
+    risk_metrics: BacktestRiskMetricsDTO = Field(
+        description="Risk metrics evaluated on equity curve"
+    )
+    equity_curve: list[EquitySnapshotDTO] = Field(description="Sequential equity curve snapshots")
+    executed_trades: list[BacktestTradeDTO] = Field(
+        default_factory=list, description="Executed trade fills"
+    )
+    report: PerformanceReportDTO = Field(description="Deterministic performance report metadata")
+
+
+# =============================================================================
 # Authentication Request & Response Models (V17 Commit 01)
 # =============================================================================
 
@@ -376,25 +673,41 @@ class LoginResponse(BaseModel):
 __all__ = [
     "ApiError",
     "ApiErrorDetail",
+    "BacktestRiskMetricsDTO",
+    "BacktestTradeDTO",
     "CurrentRegimeContextDTO",
+    "DownsideRiskMetricsDTO",
+    "DrawdownMetricsDTO",
+    "EquitySnapshotDTO",
+    "ExpectedShortfallMetricsDTO",
     "FeatureStatisticDTO",
     "GlobalTransitionAnalyticsDTO",
     "HealthResponse",
     "LoginRequest",
     "LoginResponse",
+    "MarketBacktestResponse",
     "MarketDataResponse",
     "MarketItemResponse",
     "MarketListResponse",
     "MarketRegimeResponse",
+    "MarketRiskResponse",
     "MarketTransitionResponse",
+    "MethodologyDTO",
+    "MetricDefinitionDTO",
     "OHLCVBarResponse",
+    "PerformanceReportDTO",
     "RankedDestinationDTO",
     "ReadinessResponse",
     "RegimeProfileDTO",
     "RegisterRequest",
     "RegisterResponse",
+    "ReturnStatisticsDTO",
+    "RiskPricePointDTO",
     "RootResponse",
+    "TradeStatisticsDTO",
     "TransitionProbabilityDTO",
     "TransitionRegimeAnalyticsDTO",
     "UserResponse",
+    "VaRMetricsDTO",
+    "VolatilityMetricsDTO",
 ]

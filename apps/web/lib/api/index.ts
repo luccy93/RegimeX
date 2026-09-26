@@ -11,3 +11,13 @@ export * from "./markets";
 export * from "./auth";
 export * from "./health";
 export * from "./regimes";
+export {
+  getMarketRisk,
+  formatDecimal as formatRiskDecimal,
+  type GetRiskParams,
+} from "./risk";
+export {
+  getMarketBacktest,
+  formatCurrency as formatBacktestCurrency,
+  type GetBacktestParams,
+} from "./backtesting";

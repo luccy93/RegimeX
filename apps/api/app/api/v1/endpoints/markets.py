@@ -16,22 +16,47 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query
 
 from app.api.v1.models import (
+    BacktestRiskMetricsDTO,
+    BacktestTradeDTO,
     CurrentRegimeContextDTO,
+    DownsideRiskMetricsDTO,
+    DrawdownMetricsDTO,
+    EquitySnapshotDTO,
+    ExpectedShortfallMetricsDTO,
     FeatureStatisticDTO,
     GlobalTransitionAnalyticsDTO,
+    MarketBacktestResponse,
     MarketDataResponse,
     MarketItemResponse,
     MarketListResponse,
     MarketRegimeResponse,
+    MarketRiskResponse,
     MarketTransitionResponse,
+    MethodologyDTO,
+    MetricDefinitionDTO,
     OHLCVBarResponse,
+    PerformanceReportDTO,
     RankedDestinationDTO,
     RegimeProfileDTO,
+    ReturnStatisticsDTO,
+    RiskPricePointDTO,
+    TradeStatisticsDTO,
     TransitionProbabilityDTO,
     TransitionRegimeAnalyticsDTO,
+    VaRMetricsDTO,
+    VolatilityMetricsDTO,
 )
-from app.core.dependencies import MarketIntelligenceDep, MarketServiceDep
+from app.core.dependencies import (
+    BacktestingServiceDep,
+    MarketIntelligenceDep,
+    MarketServiceDep,
+    PortfolioRiskServiceDep,
+)
 from app.core.errors import BadRequestError, ValidationError
+from app.modules.backtesting.domain.models import (
+    ExecutionPriceConvention,
+    MarketEvent,
+)
 from app.modules.market_data.domain.models import AssetClass, DataInterval
 
 router = APIRouter(prefix="/markets", tags=["Market Intelligence"])
@@ -486,4 +511,421 @@ async def get_regime_transitions(
         regime_analytics=regime_analytics_dto,
         global_analytics=global_dto,
         probabilities=probabilities_dto,
+    )
+
+
+# =============================================================================
+# Risk Analytics & Backtesting Endpoints (V13 / V14 / V15 / V20)
+# =============================================================================
+
+
+@router.get(
+    "/{symbol}/risk",
+    response_model=MarketRiskResponse,
+    summary="Retrieve portfolio risk analytics for an instrument",
+    description=(
+        "Evaluates V13 portfolio risk analytics (return statistics, realized volatility, "
+        "downside deviation, maximum drawdown, VaR and Expected Shortfall) on historical "
+        "market data for a queried instrument."
+    ),
+)
+async def get_market_risk(
+    symbol: Annotated[str, Path(min_length=1, max_length=50, description="Instrument symbol")],
+    market_service: MarketServiceDep,
+    risk_service: PortfolioRiskServiceDep,
+    start: Annotated[
+        datetime | None, Query(description="Start time (inclusive, UTC-aware)")
+    ] = None,
+    end: Annotated[datetime | None, Query(description="End time (exclusive, UTC-aware)")] = None,
+    interval: Annotated[str, Query(description="Data aggregation interval (e.g. '1d')")] = "1d",
+    limit: Annotated[int, Query(ge=2, le=5000, description="Maximum bars to analyze")] = 1000,
+    periods_per_year: Annotated[
+        float, Query(gt=0, description="Annualization factor (e.g. 252.0 for daily)")
+    ] = 252.0,
+    target_return: Annotated[float, Query(description="Downside deviation target return")] = 0.0,
+) -> MarketRiskResponse:
+    """Retrieve comprehensive portfolio risk intelligence for an instrument."""
+    clean_symbol = symbol.strip().upper()
+    if not clean_symbol:
+        raise BadRequestError("Instrument symbol cannot be empty or whitespace.")
+
+    # Timezone validation
+    if start is not None and start.tzinfo is None:
+        raise ValidationError(
+            f"Query start datetime must be timezone-aware UTC (got naive datetime: {start!r}).",
+            details={"parameter": "start", "value": start.isoformat()},
+        )
+    if end is not None and end.tzinfo is None:
+        raise ValidationError(
+            f"Query end datetime must be timezone-aware UTC (got naive datetime: {end!r}).",
+            details={"parameter": "end", "value": end.isoformat()},
+        )
+
+    end_utc = end.astimezone(UTC) if end is not None else datetime.now(UTC)
+    start_utc = start.astimezone(UTC) if start is not None else end_utc - timedelta(days=365)
+
+    if start_utc >= end_utc:
+        raise ValidationError(
+            f"Query end ({end_utc.isoformat()}) must be strictly after "
+            f"start ({start_utc.isoformat()}).",
+            details={"start": start_utc.isoformat(), "end": end_utc.isoformat()},
+        )
+
+    try:
+        parsed_interval = DataInterval(interval.strip().lower())
+    except ValueError as exc:
+        intervals = [i.value for i in DataInterval]
+        raise ValidationError(
+            f"Invalid interval {interval!r}. Supported intervals: {intervals}",
+            details={"interval": interval},
+        ) from exc
+
+    records, _ = await market_service.get_market_data(
+        symbol=clean_symbol,
+        start=start_utc,
+        end=end_utc,
+        interval=parsed_interval,
+        limit=limit,
+    )
+
+    if len(records) < 2:
+        raise ValidationError(
+            f"Insufficient historical data for symbol {clean_symbol!r} "
+            f"(found {len(records)} bars, minimum 2 required).",
+            details={"symbol": clean_symbol, "bars_found": len(records)},
+        )
+
+    prices = tuple(b.close for b in records)
+    timestamps = tuple(b.timestamp for b in records)
+
+    result = risk_service.analyze_price_series(
+        prices=prices,
+        timestamps=timestamps,
+        symbol=clean_symbol,
+        periods_per_year=periods_per_year,
+        target_return=target_return,
+        var_confidences=(0.90, 0.95, 0.99),
+    )
+
+    # Compute high-fidelity price points and point-in-time drawdown track
+    price_points: list[RiskPricePointDTO] = []
+    running_peak = prices[0]
+    for i, rec in enumerate(records):
+        if rec.close > running_peak:
+            running_peak = rec.close
+        dd = (rec.close - running_peak) / running_peak if running_peak > 0 else 0.0
+        p_ret = ((rec.close - records[i - 1].close) / records[i - 1].close) if i > 0 else None
+        price_points.append(
+            RiskPricePointDTO(
+                timestamp=rec.timestamp,
+                price=rec.close,
+                period_return=p_ret,
+                running_peak=running_peak,
+                drawdown=dd,
+            )
+        )
+
+    # Map VaR and ES by string confidence
+    var_dtos: dict[str, VaRMetricsDTO] = {}
+    for conf, vm in result.var_metrics.items():
+        conf_key = f"{conf:.2f}"
+        var_dtos[conf_key] = VaRMetricsDTO(
+            confidence_level=vm.confidence_level,
+            var_loss=vm.var_loss,
+            return_quantile=vm.return_quantile,
+            method=vm.method,
+            tail_observations=vm.tail_observations,
+            total_observations=vm.total_observations,
+        )
+
+    es_dtos: dict[str, ExpectedShortfallMetricsDTO] = {}
+    for conf, em in result.expected_shortfall_metrics.items():
+        conf_key = f"{conf:.2f}"
+        es_dtos[conf_key] = ExpectedShortfallMetricsDTO(
+            confidence_level=em.confidence_level,
+            expected_shortfall=em.expected_shortfall,
+            tail_mean_return=em.tail_mean_return,
+            var_loss=em.var_loss,
+            tail_observations=em.tail_observations,
+            total_observations=em.total_observations,
+        )
+
+    downside_var = result.downside_risk.downside_deviation**2
+    return MarketRiskResponse(
+        symbol=clean_symbol,
+        series_id=result.series_id,
+        observation_count=result.observation_count,
+        start_timestamp=result.start_timestamp,
+        end_timestamp=result.end_timestamp,
+        computed_at=result.computed_at,
+        return_statistics=ReturnStatisticsDTO(
+            mean_return=result.return_statistics.mean_return,
+            median_return=result.return_statistics.median_return,
+            standard_deviation=result.return_statistics.standard_deviation,
+            minimum_return=result.return_statistics.minimum_return,
+            maximum_return=result.return_statistics.maximum_return,
+            observation_count=result.return_statistics.observation_count,
+        ),
+        volatility=VolatilityMetricsDTO(
+            period_volatility=result.volatility.period_volatility,
+            annualized_volatility=result.volatility.annualized_volatility,
+            periods_per_year=result.volatility.periods_per_year,
+        ),
+        downside_risk=DownsideRiskMetricsDTO(
+            downside_deviation=result.downside_risk.downside_deviation,
+            semi_variance=downside_var,
+            target_return=result.downside_risk.target_return,
+            observation_count=result.downside_risk.total_observations,
+            downside_observation_count=result.downside_risk.observations_below_target,
+        ),
+        drawdown=DrawdownMetricsDTO(
+            max_drawdown=result.drawdown.max_drawdown,
+            drawdown_magnitude=result.drawdown.drawdown_magnitude,
+            peak_value=result.drawdown.peak_value,
+            trough_value=result.drawdown.trough_value,
+            peak_timestamp=result.drawdown.peak_timestamp,
+            trough_timestamp=result.drawdown.trough_timestamp,
+            recovery_timestamp=result.drawdown.recovery_timestamp,
+            is_recovered=result.drawdown.is_recovered,
+        ),
+        var_metrics=var_dtos,
+        expected_shortfall_metrics=es_dtos,
+        price_points=price_points,
+    )
+
+
+@router.get(
+    "/{symbol}/backtest",
+    response_model=MarketBacktestResponse,
+    summary="Execute systematic event-driven backtest simulation",
+    description=(
+        "Executes a deterministic event-driven backtest simulation (V14) with realistic "
+        "transaction fees and slippage, and generates an immutable performance report (V15)."
+    ),
+)
+async def get_market_backtest(
+    symbol: Annotated[str, Path(min_length=1, max_length=50, description="Instrument symbol")],
+    market_service: MarketServiceDep,
+    market_intelligence: MarketIntelligenceDep,
+    backtest_service: BacktestingServiceDep,
+    strategy: Annotated[
+        str,
+        Query(description="Strategy identifier: 'BUY_AND_HOLD' or 'REGIME_ADAPTIVE'"),
+    ] = "BUY_AND_HOLD",
+    start: Annotated[
+        datetime | None, Query(description="Start time (inclusive, UTC-aware)")
+    ] = None,
+    end: Annotated[datetime | None, Query(description="End time (exclusive, UTC-aware)")] = None,
+    interval: Annotated[str, Query(description="Data aggregation interval (e.g. '1d')")] = "1d",
+    limit: Annotated[int, Query(ge=3, le=5000, description="Maximum bars to simulate")] = 1000,
+    initial_cash: Annotated[float, Query(gt=0, description="Initial starting capital")] = 100_000.0,
+    commission_rate: Annotated[
+        float, Query(ge=0, description="Commission rate per trade fill")
+    ] = 0.0005,
+    slippage_rate: Annotated[
+        float, Query(ge=0, description="Slippage rate per trade fill")
+    ] = 0.0005,
+    execution_convention: Annotated[
+        str, Query(description="'CURRENT_CLOSE' or 'NEXT_OPEN'")
+    ] = "CURRENT_CLOSE",
+    periods_per_year: Annotated[
+        float, Query(gt=0, description="Annualization factor (e.g. 252.0 for daily)")
+    ] = 252.0,
+) -> MarketBacktestResponse:
+    """Execute systematic event-driven backtest simulation and return performance report."""
+    clean_symbol = symbol.strip().upper()
+    if not clean_symbol:
+        raise BadRequestError("Instrument symbol cannot be empty or whitespace.")
+
+    # Timezone validation
+    if start is not None and start.tzinfo is None:
+        raise ValidationError(
+            f"Query start datetime must be timezone-aware UTC (got naive datetime: {start!r}).",
+            details={"parameter": "start", "value": start.isoformat()},
+        )
+    if end is not None and end.tzinfo is None:
+        raise ValidationError(
+            f"Query end datetime must be timezone-aware UTC (got naive datetime: {end!r}).",
+            details={"parameter": "end", "value": end.isoformat()},
+        )
+
+    end_utc = end.astimezone(UTC) if end is not None else datetime.now(UTC)
+    start_utc = start.astimezone(UTC) if start is not None else end_utc - timedelta(days=365)
+
+    if start_utc >= end_utc:
+        raise ValidationError(
+            f"Query end ({end_utc.isoformat()}) must be strictly after "
+            f"start ({start_utc.isoformat()}).",
+            details={"start": start_utc.isoformat(), "end": end_utc.isoformat()},
+        )
+
+    try:
+        parsed_interval = DataInterval(interval.strip().lower())
+    except ValueError as exc:
+        intervals = [i.value for i in DataInterval]
+        raise ValidationError(
+            f"Invalid interval {interval!r}. Supported intervals: {intervals}",
+            details={"interval": interval},
+        ) from exc
+
+    # Parse execution convention case-insensitively
+    clean_convention = execution_convention.strip().lower()
+    try:
+        parsed_convention = ExecutionPriceConvention(clean_convention)
+    except ValueError as exc:
+        conventions = [c.value.upper() for c in ExecutionPriceConvention]
+        raise ValidationError(
+            f"Invalid execution convention {execution_convention!r}. Supported: {conventions}",
+            details={"execution_convention": execution_convention},
+        ) from exc
+
+    records, _ = await market_service.get_market_data(
+        symbol=clean_symbol,
+        start=start_utc,
+        end=end_utc,
+        interval=parsed_interval,
+        limit=limit,
+    )
+
+    if len(records) < 3:
+        raise ValidationError(
+            f"Insufficient historical data for backtesting simulation "
+            f"(minimum 3 bars required, found {len(records)}).",
+            details={"symbol": clean_symbol, "bars_found": len(records)},
+        )
+
+    events = [MarketEvent.from_ohlcv(b) for b in records]
+
+    # Resolve strategy & run simulation via BacktestingService
+    clean_strat = strategy.strip().upper()
+    regimes_seq: list[int] | None = None
+
+    if clean_strat == "REGIME_ADAPTIVE":
+        try:
+            summary, _ = await market_intelligence.get_market_regime(
+                symbol=clean_symbol,
+                start=start_utc,
+                end=end_utc,
+                interval=parsed_interval,
+                limit=limit,
+            )
+            cur_id = summary.current_regime.current_regime_id if summary.current_regime else 0
+            regimes_seq = [cur_id] * len(events)
+        except Exception:
+            regimes_seq = [0] * len(events)
+
+    result, summary_metric, report, strategy_id, strategy_name = backtest_service.run_simulation(
+        events=events,
+        strategy_id=clean_strat,
+        initial_cash=initial_cash,
+        commission_rate=commission_rate,
+        slippage_rate=slippage_rate,
+        execution_convention=parsed_convention,
+        regimes=regimes_seq,
+        periods_per_year=periods_per_year,
+    )
+
+    trades_metric = summary_metric.trades
+
+    # Convert equity snapshots and calculate running drawdown
+    equity_curve_dtos: list[EquitySnapshotDTO] = []
+    peak_eq = result.initial_cash
+    for s in result.equity_curve:
+        if s.equity > peak_eq:
+            peak_eq = s.equity
+        s_dd = (s.equity - peak_eq) / peak_eq if peak_eq > 0 else 0.0
+        equity_curve_dtos.append(
+            EquitySnapshotDTO(
+                timestamp=s.timestamp,
+                cash=s.cash,
+                market_value=s.market_value,
+                equity=s.equity,
+                fees=s.fees,
+                realized_pnl=s.realized_pnl,
+                unrealized_pnl=s.unrealized_pnl,
+                drawdown=s_dd,
+            )
+        )
+
+    # Executed trades / fills
+    trade_dtos = [
+        BacktestTradeDTO(
+            timestamp=f.timestamp,
+            symbol=f.symbol,
+            side=f.side.value,
+            quantity=f.quantity,
+            price=f.price,
+            commission=f.commission,
+            slippage=f.slippage,
+        )
+        for f in result.fills
+    ]
+
+    metric_defs = [
+        MetricDefinitionDTO(
+            metric_name=m.metric_name,
+            description=m.description,
+            unit=m.unit,
+            direction_semantics=m.direction_semantics,
+            source=m.source,
+        )
+        for m in report.metric_definitions
+    ]
+
+    methodology_dto = MethodologyDTO(
+        common_period_policy=report.methodology.common_period_policy,
+        trade_definition=report.methodology.trade_definition,
+        risk_engine_source=report.methodology.risk_engine_source,
+        return_type=report.methodology.return_type,
+        execution_engine_source=report.methodology.execution_engine_source,
+    )
+
+    report_dto = PerformanceReportDTO(
+        report_id=report.report_id,
+        report_version=report.report_version,
+        generated_at=report.generated_at,
+        methodology=methodology_dto,
+        limitations=list(report.limitations),
+        metric_definitions=metric_defs,
+    )
+
+    return MarketBacktestResponse(
+        symbol=clean_symbol,
+        strategy_id=strategy_id,
+        strategy_name=strategy_name,
+        execution_convention=parsed_convention.value.upper(),
+        initial_cash=result.initial_cash,
+        final_cash=result.final_cash,
+        final_equity=summary_metric.final_equity,
+        total_return=summary_metric.total_return,
+        annualized_return=summary_metric.annualized_return,
+        absolute_pnl=summary_metric.absolute_pnl,
+        realized_pnl=summary_metric.realized_pnl,
+        unrealized_pnl=summary_metric.unrealized_pnl,
+        total_fees=summary_metric.total_fees,
+        slippage_rate=slippage_rate,
+        commission_rate=commission_rate,
+        trades=TradeStatisticsDTO(
+            order_count=trades_metric.order_count,
+            fill_count=trades_metric.fill_count,
+            completed_trade_count=trades_metric.completed_trade_count,
+            winning_trades=trades_metric.winning_trades,
+            losing_trades=trades_metric.losing_trades,
+            win_rate=trades_metric.win_rate,
+            total_realized_pnl=trades_metric.total_realized_pnl,
+            average_trade_pnl=trades_metric.average_trade_pnl,
+            largest_winning_trade=trades_metric.largest_winning_trade,
+            largest_losing_trade=trades_metric.largest_losing_trade,
+        ),
+        risk_metrics=BacktestRiskMetricsDTO(
+            volatility=summary_metric.volatility,
+            annualized_volatility=summary_metric.annualized_volatility,
+            maximum_drawdown=summary_metric.maximum_drawdown,
+            drawdown_magnitude=summary_metric.drawdown_magnitude,
+            var_95=summary_metric.var_95,
+            expected_shortfall_95=summary_metric.expected_shortfall_95,
+        ),
+        equity_curve=equity_curve_dtos,
+        executed_trades=trade_dtos,
+        report=report_dto,
     )

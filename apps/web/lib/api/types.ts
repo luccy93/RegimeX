@@ -232,3 +232,178 @@ export interface LoginResponse {
   expires_in: number;
   user: UserResponse;
 }
+
+// =============================================================================
+// Portfolio Risk Analytics Models (V13 / V20)
+// =============================================================================
+
+export interface ReturnStatisticsDTO {
+  mean_return: number;
+  median_return: number;
+  standard_deviation: number;
+  minimum_return: number;
+  maximum_return: number;
+  observation_count: number;
+}
+
+export interface VolatilityMetricsDTO {
+  period_volatility: number;
+  annualized_volatility: number;
+  periods_per_year: number;
+}
+
+export interface DownsideRiskMetricsDTO {
+  downside_deviation: number;
+  semi_variance: number;
+  target_return: number;
+  observation_count: number;
+  downside_observation_count: number;
+}
+
+export interface DrawdownMetricsDTO {
+  max_drawdown: number;
+  drawdown_magnitude: number;
+  peak_value: number;
+  trough_value: number;
+  peak_timestamp: string;
+  trough_timestamp: string;
+  recovery_timestamp: string | null;
+  is_recovered: boolean;
+}
+
+export interface VaRMetricsDTO {
+  confidence_level: number;
+  var_loss: number;
+  return_quantile: number;
+  method: string;
+  tail_observations: number;
+  total_observations: number;
+}
+
+export interface ExpectedShortfallMetricsDTO {
+  confidence_level: number;
+  expected_shortfall: number;
+  tail_mean_return: number;
+  var_loss: number;
+  tail_observations: number;
+  total_observations: number;
+}
+
+export interface RiskPricePointDTO {
+  timestamp: string;
+  price: number;
+  period_return: number | null;
+  running_peak: number;
+  drawdown: number;
+}
+
+export interface MarketRiskResponse {
+  symbol: string;
+  series_id: string;
+  observation_count: number;
+  start_timestamp: string;
+  end_timestamp: string;
+  computed_at: string;
+  return_statistics: ReturnStatisticsDTO;
+  volatility: VolatilityMetricsDTO;
+  downside_risk: DownsideRiskMetricsDTO;
+  drawdown: DrawdownMetricsDTO;
+  var_metrics: Record<string, VaRMetricsDTO>;
+  expected_shortfall_metrics: Record<string, ExpectedShortfallMetricsDTO>;
+  price_points: RiskPricePointDTO[];
+}
+
+// =============================================================================
+// Systematic Backtesting Models (V14 / V15 / V20)
+// =============================================================================
+
+export interface EquitySnapshotDTO {
+  timestamp: string;
+  cash: number;
+  market_value: number;
+  equity: number;
+  fees: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  drawdown: number;
+}
+
+export interface TradeStatisticsDTO {
+  order_count: number;
+  fill_count: number;
+  completed_trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  total_realized_pnl: number;
+  average_trade_pnl: number;
+  largest_winning_trade: number;
+  largest_losing_trade: number;
+}
+
+export interface BacktestTradeDTO {
+  timestamp: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  price: number;
+  commission: number;
+  slippage: number;
+}
+
+export interface BacktestRiskMetricsDTO {
+  volatility: number;
+  annualized_volatility: number;
+  maximum_drawdown: number;
+  drawdown_magnitude: number;
+  var_95: number;
+  expected_shortfall_95: number;
+}
+
+export interface MethodologyDTO {
+  common_period_policy: string;
+  trade_definition: string;
+  risk_engine_source: string;
+  return_type: string;
+  execution_engine_source: string;
+}
+
+export interface MetricDefinitionDTO {
+  metric_name: string;
+  description: string;
+  unit: string;
+  direction_semantics: string;
+  source: string;
+}
+
+export interface PerformanceReportDTO {
+  report_id: string;
+  report_version: string;
+  generated_at: string;
+  methodology: MethodologyDTO;
+  limitations: string[];
+  metric_definitions: MetricDefinitionDTO[];
+}
+
+export interface MarketBacktestResponse {
+  symbol: string;
+  strategy_id: string;
+  strategy_name: string;
+  execution_convention: "CURRENT_CLOSE" | "NEXT_OPEN" | string;
+  initial_cash: number;
+  final_cash: number;
+  final_equity: number;
+  total_return: number;
+  annualized_return: number;
+  absolute_pnl: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  total_fees: number;
+  slippage_rate: number;
+  commission_rate: number;
+  trades: TradeStatisticsDTO;
+  risk_metrics: BacktestRiskMetricsDTO;
+  equity_curve: EquitySnapshotDTO[];
+  executed_trades: BacktestTradeDTO[];
+  report: PerformanceReportDTO;
+}

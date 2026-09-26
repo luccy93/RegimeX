@@ -1,193 +1,122 @@
-# RegimeX — Volume 20: Regime Analytics Workspace
+# RegimeX — Volume 20: Analytics, Risk, and Backtesting Workspaces
 
-## Official Commit 01
-`feat(web): add regime analytics workspace`
+## Official Commits
+
+- **Commit 01:** `feat(web): add regime analytics workspace` (`c535172`)
+- **Commit 02:** `feat(web): add risk and backtesting dashboards`
 
 > **Scope Declaration:**
-> **V20 Commit 01 establishes the dedicated regime analytics workspace at `/app/regimes`.**
-> **V20 Commit 02 will add risk and backtesting dashboards.**
+> Volume 20 establishes the complete quantitative analytics suite for the RegimeX frontend console:
+> 1. **Regime Analytics Workspace** (`/app/regimes`)
+> 2. **Portfolio Risk Analytics Workspace** (`/app/risk`)
+> 3. **Systematic Backtesting Simulation Workspace** (`/app/backtesting`)
 
 ---
 
-## 1. Overview & Objective
+## 1. Overview & Objectives
 
-Volume 20 Commit 01 transforms raw statistical regime classifications and empirical Markov transitions into a dedicated analytical workspace at `/app/regimes`.
+Volume 20 transforms backend quantitative domain engines (V08–V15) into descriptive, reproducible, and production-grade analytical workspaces.
 
-Building on the market intelligence foundation established in V19, the workspace is designed specifically for quantitative investigation into:
-- Current point-in-time regime assignments and empirical model confidence
-- Observed regime distributions across verified sample windows
-- Regime frequency, run counts, and continuous persistence probabilities
-- Extreme and expected duration characteristics (mean, median, min, max, current run)
-- Detailed feature statistics (mean, median, standard deviation, extrema) across regimes
-- Empirical 1-step Markov transition probability matrices
-- Regime change dynamics vs. diagonal persistence (self-transitions)
-- Transition destination rankings and dispersion entropy
-- Complete analytical methodology and model provenance
+These analytical consoles expose:
+- **V11/V12/V19/V20:** Empirical Markov regime classifications, persistence probabilities, run durations, feature statistics, transition matrices, and transition dispersion entropy.
+- **V13:** Historical portfolio risk profiling, realized annual volatility, peak-to-trough underwater drawdown tracks, multi-tier Value at Risk (VaR), and Conditional VaR / Expected Shortfall.
+- **V14/V15:** Deterministic event-driven backtesting execution, realistic transaction friction (commissions & slippage), equity curve trajectory with initial capital baseline, win/loss trade attribution, and immutable performance reports with metric definitions.
 
-This is strictly a **descriptive and diagnostic analysis workspace**, not a trading interface or prediction engine. No buy/sell recommendations, forward-looking price targets, or subjective risk ratings are generated.
+These are **reproducible research and diagnostic workspaces**, strictly decoupled from live trading, broker execution, or predictive speculation.
 
 ---
 
-## 2. Route & Navigation
+## 2. Routes & URL-Driven Context
 
-* **Route:** `/app/regimes`
-* **URL-Driven State:** Market selection is persisted via query parameter:
-  ```text
-  /app/regimes?symbol=SPY
-  ```
-* **Browser Navigation:** Browser back, forward, and refresh synchronize state deterministically through Next.js `useSearchParams()` and `useRouter()`.
-* **Default Instrument Selection:** If no symbol is specified in the URL, the workspace deterministically initializes with the first available instrument from the catalog.
+| Route | Primary Query Parameter | Description |
+| :--- | :--- | :--- |
+| `/app/regimes` | `?symbol=SPY` | Regime profiles, distribution, frequency, persistence, durations, transition matrices |
+| `/app/risk` | `?symbol=SPY` | Historical risk profiling, realized volatility, drawdown tracks, multi-quantile VaR & Expected Shortfall |
+| `/app/backtesting` | `?symbol=SPY&strategy=BUY_AND_HOLD` | Event-driven simulation, equity curves, trade statistics, strategy risk, performance audit reports |
 
----
-
-## 3. Information Architecture & Workspace Layout
-
-The workspace is organized into a modular analytical hierarchy:
-
-```text
-Regime Analytics Workspace (/app/regimes)
-│
-├── 1. Header & Market Selector
-│      ├── Page title & subtitle
-│      ├── Market selector dropdown (search, asset class filtering)
-│      └── Context strip (active symbol, analysis window, sample size, regime count)
-│
-├── 2. Current Regime Summary
-│      ├── Active regime label & ID
-│      ├── Model confidence gauge (percentage & evaluation tier)
-│      ├── Current duration vs. historical average & maximum duration
-│      ├── Historical frequency & run count
-│      └── Point-in-time active feature vector
-│
-├── 3. Regime Distribution
-│      ├── Horizontal proportional observation track
-│      └── Segment cards showing observation share (count / total * 100)
-│
-├── 4. Regime Frequency & Persistence
-│      ├── Frequency & persistence analytical data table
-│      ├── Step-to-step persistence probability: P(S_{t+1} = k | S_t = k)
-│      └── Historical discovery window (first seen, last seen)
-│
-├── 5. Duration Analysis
-│      ├── Comparative duration extents (average vs. maximum)
-│      ├── Tabular duration statistics (mean, median, min, max, current run)
-│      └── Discrete duration distribution disclosure
-│
-├── 6. Regime Profile Comparison & Feature Statistics
-│      ├── Cross-regime feature statistics matrix (mean, median, std, extrema)
-│      ├── Multi-stat filter view (Mean, Median, Std Dev, Min, Max, All)
-│      └── Strict non-imputation standard (null values preserved as "—")
-│
-├── 7. Regime Change & Transition Analytics
-│      ├── Global transition counters (changes, self-transitions, rates, edges)
-│      ├── 1-step Markov transition probability matrix
-│      │   ├── Diagonal: Persistence / Self-transition
-│      │   └── Off-diagonal: Regime change
-│      ├── Probability [0-1] and percentage (%) display toggle
-│      ├── Transition destination rankings per regime
-│      ├── Transition entropy in nats (destination dispersion)
-│      └── Isolated error boundary with independent retry action
-│
-└── 8. Analytical Methodology & Provenance
-       ├── Engine model name, model version, and underlying algorithm
-       ├── Feature set, observation interval, and temporal sample bounds
-       └── Explicit diagnostic scope and reproducibility declaration
-```
+### Navigation Invariants
+- **Bidirectional URL Synchronization:** All route changes and parameter updates (`symbol`, `strategy`) reflect immediately in the URL search params.
+- **Deterministic Defaults:** If no instrument is specified, workspaces deterministically select the first instrument from the discoverable market catalog.
+- **Browser History Integration:** Full support for browser `Back`, `Forward`, and `Refresh` without losing state or desynchronizing UI controls.
 
 ---
 
-## 4. API Dependencies & Data Layer
+## 3. Information Architecture & Consoles
 
-All analytical metrics are derived directly from the production FastAPI backend without synthetic or client-estimated approximations:
+### 3.1 Regime Analytics Workspace (`/app/regimes`)
+- **Regime Workspace Header:** Market discovery selector, active instrument summary, temporal window, sample observations.
+- **Current Regime Context:** Current regime assignment, empirical model confidence gauge, and point-in-time feature vector.
+- **Regime Distribution:** Proportional horizontal observation track and regime share percentages.
+- **Frequency & Persistence:** 1-step persistence probability $P(S_{t+1}=k \mid S_t=k)$, run counts, and total observations.
+- **Duration Characteristics:** Average vs. maximum run duration, discrete duration disclosures.
+- **Feature Statistics Matrix:** Cross-regime distributions (mean, median, standard deviation, extrema) with zero-imputation avoidance.
+- **Markov Transition Matrix:** Empirical 1-step Markov transition probabilities, regime changes, destination rankings, and Shannon transition entropy.
+- **Methodology & Provenance:** Model algorithm, feature definitions, and diagnostic boundaries.
 
-| Endpoint | Method | Purpose in Workspace |
-| :--- | :---: | :--- |
-| `/api/v1/markets` | `GET` | Instrument catalog discovery and market selector options |
-| `/api/v1/markets/{symbol}/regime` | `GET` | Current regime state, duration metrics, frequency, and feature profiles |
-| `/api/v1/markets/{symbol}/regime/transitions` | `GET` | Empirical transition matrix, change counts, persistence rates, entropy |
+### 3.2 Risk Analytics Workspace (`/app/risk`)
+- **Risk Header:** Market selector, instrument metadata, 252-period annualization basis, target benchmark return.
+- **Risk Profile Overview:**
+  - Annualized Volatility ($\sigma_{\text{ann}} = \sigma_{\text{period}} \times \sqrt{252}$)
+  - Maximum Drawdown (depth, peak-to-trough magnitude, recovery lifecycle status)
+  - 1-Day Value at Risk (95% confidence loss-oriented threshold)
+  - 1-Day Expected Shortfall (95% conditional tail expectation)
+  - Downside Deviation & Semi-Variance (evaluated relative to $T=0.0\%$)
+  - Sample Mean & Median Daily Return
+- **Drawdown Track & Peak-to-Trough Profile:** High-fidelity SVG chart depicting normalized underwater equity decline over time, pre-crash peak value, trough depth, and recovery timestamp.
+- **Tail Risk & Return Dispersion:** Multi-tier VaR and Expected Shortfall table comparing 90%, 95%, and 99% regulatory tiers against empirical tail counts and discrete return range.
+- **Analytical Methodology & Risk Disclosures:** Mathematical definitions, loss-positive orientation semantics, and non-stationarity limitations.
 
-### Focused Data Layer (`apps/web/lib/api/regimes.ts`)
-
-A dedicated API wrapper provides typed methods and defensive data validation:
-- `getRegimeAnalytics(symbol, params)`: Queries regime context and profile statistics.
-- `fetchRegimeTransitions(symbol, params)`: Queries empirical transition matrices.
-- `isValidFiniteNumber(val)`: Verifies numeric inputs against NaN / Infinity.
-- `isValidProbability(val)`: Enforces probabilities in $[0, 1]$.
-- `isValidTransitionMatrix(matrix, expectedSize)`: Validates $N \times N$ matrix dimensions and values.
-- `computeRegimeDistributionPercentages(profiles, totalObservations)`: Computes percentages strictly as $\frac{\text{count}}{\text{total}} \times 100$ without division-by-zero risk.
-
----
-
-## 5. Statistical Rigor & Data Integrity Standards
-
-1. **Non-Imputation Standard (Section 15):**
-   The backend explicitly avoids zero-imputation for missing feature statistics. Missing, null, or non-finite values are never converted to `0` or `0.00%`. They are rendered as `—` (em-dash) or `Unavailable`.
-
-2. **Persistence vs. Duration (Section 11 & 21):**
-   - **Persistence Rate:** The conditional 1-step probability of remaining in state $k$ given state $k$ at time $t$:
-     $$P(S_{t+1} = k \mid S_t = k)$$
-     Reflected on the diagonal of the transition matrix.
-   - **Duration:** The length of continuous observation runs in state $k$, measured strictly in observation bars.
-
-3. **Transition Entropy (Section 22):**
-   Computed as Shannon entropy over outgoing transition distributions in nats:
-   $$H(S_k) = -\sum_{j} P_{kj} \ln P_{kj}$$
-   Entropy measures destination dispersion (degree of multi-state branching). It is strictly descriptive and is never labeled as "risk" or "danger".
-
-4. **Discrete Duration Distribution (Section 13):**
-   Because individual run duration histograms are not exposed in the summary payload, the workspace explicitly communicates:
-   *"Detailed duration distribution unavailable — empirical discrete histogram data is not exposed in the API summary payload."*
-   No synthetic or pseudo-random histograms are fabricated.
-
-5. **No Predictive Claims (Section 23 & 26):**
-   All historical duration comparisons (e.g. current run vs. historical average) are framed descriptively. No speculative statements ("a change is likely soon") are permitted.
+### 3.3 Systematic Backtesting Workspace (`/app/backtesting`)
+- **Backtesting Header:**
+  - Strategy selector: `BUY_AND_HOLD` (Benchmark Buy & Hold) vs. `REGIME_ADAPTIVE` (Regime Adaptive Momentum)
+  - Execution Price Fill toggle: `CURRENT_CLOSE` (Bar Close) vs. `NEXT_OPEN` (Next Bar Open)
+  - Starting Capital: $100,000.00
+  - Transaction Friction: 5 bps Commission / 5 bps Slippage
+- **Performance Summary:**
+  - Final Equity (formatted in USD, net absolute PnL, total return %)
+  - Annualized Return (CAGR basis)
+  - PnL Decomposition (Realized vs. Unrealized)
+  - Transaction Costs & Execution Friction
+  - Strategy Maximum Drawdown & Volatility
+- **Equity Curve & Drawdown Subplot:** Responsive SVG chart charting cumulative mark-to-market net equity with capital baseline ($100k) and synchronized underwater drawdown track.
+- **Trade Execution & Win/Loss Statistics:** Order/fill reconciliation, completed trade count, win rate %, average trade PnL, largest winning vs. losing trade, and complete executed fills log.
+- **Strategy Risk Diagnostics:** Volatility, max drawdown, 95% VaR, and 95% Expected Shortfall evaluated directly on strategy equity.
+- **Deterministic Performance Report:** Immutable V15 audit trail with Report ID, Version, Generated timestamp, execution methodology policies, simulation limitations, and metric definitions glossary.
 
 ---
 
-## 6. Error Isolation & Resilient UX
+## 4. Backend Architecture & Clean Architecture Compliance
 
-- **Independent Section Loading:** The workspace uses granular loading skeletons (`Card`, `DataTable`, `MetricCard`, `Skeleton`) so that fast responses render immediately.
-- **Isolated Transition Failure:** If `/api/v1/markets/{symbol}/regime/transitions` returns an error (e.g., 404 or insufficient sample length), the regime profile summary and feature statistics continue to display normally. An isolated error alert with a dedicated retry button is rendered only within the transition section.
-- **Empty States:** Gracefully handles empty catalogs, unclassified symbols, and instruments with zero transition events.
-
----
-
-## 7. Accessibility & Responsive Design
-
-- **Semantic Landmarks:** Proper HTML5 `<header>`, `<section>`, `<aside>`, `<h1>`, `<h2>`, and `<h3>` heading hierarchies.
-- **Screen Reader Support:** Accessible captions on analytical tables (`caption` element), `scope="col"` and `scope="row"` headers, and `sr-only` landmark descriptions.
-- **Color Independence:** Regime states are identified by text labels and badges in addition to semantic colors.
-- **Tabular Numerals:** All financial statistics and probabilities use CSS tabular numerals (`font-family: var(--font-mono)`).
-- **Responsive Breakpoints:**
-  - **Desktop (1200px+):** Multi-column metrics grids, side-by-side matrices.
-  - **Tablet (768px - 1024px):** 2-column stacked metric cards, responsive table wrapping.
-  - **Mobile (< 768px):** Single-column stacked metrics, horizontal scrolling on wide data tables with zero page-level horizontal overflow.
+To adhere strictly to Clean Architecture invariants (tested in `test_architecture.py`):
+1. **Forbidden Route Imports:** Routes under `app/api/v1/endpoints/` never import domain engines directly (`PortfolioRiskEngine`, `BacktestingEngine`, `KMeansRegimeDetector`).
+2. **Application Service Abstraction:**
+   - `PortfolioRiskService` (`app/modules/portfolio_risk/application/service.py`) encapsulates portfolio risk pipeline orchestration.
+   - `BacktestingService` (`app/modules/backtesting/application/service.py`) encapsulates deterministic event-driven simulation runs, comparison analytics, and performance report generation.
+3. **FastAPI Dependency Injection:**
+   - `PortfolioRiskServiceDep`: Injected into `GET /api/v1/markets/{symbol}/risk`.
+   - `BacktestingServiceDep`: Injected into `GET /api/v1/markets/{symbol}/backtest`.
+4. **Deterministic Simulation Strategies:**
+   - `BenchmarkBuyAndHoldStrategy`: Systematic long benchmark on the initial bar.
+   - `RegimeAdaptiveStrategy`: Dynamic momentum allocation based on inferred market regime sequences.
 
 ---
 
-## 8. Verification & Quality Gates
+## 5. Verification & Quality Gates
+
+All quality gates passed across both frontend and backend suites:
 
 ### Frontend Quality Suite (`apps/web`)
-
 ```bash
-npm test         # 133 passing unit & integration tests
-npm run lint     # Next.js ESLint clean (0 errors, 0 warnings)
+npm test           # 162 passing tests (Node.js test runner)
+npm run lint       # Next.js ESLint clean (0 errors, 0 warnings)
 npm run type-check # TypeScript 5.5 compiler clean (tsc --noEmit)
-npm run build    # Next.js 14 production bundle verified
+npm run build      # Next.js 14 production bundle verified (all routes static/prerendered)
 ```
 
 ### Backend Quality Suite (`apps/api`)
-
 ```bash
-python -m pytest tests/ -v --tb=short
-python -m ruff check app tests
-python -m ruff format --check app tests
-python -m mypy app tests
+python -m pytest tests/ -q               # 1,289 tests passing
+python -m ruff check app tests           # Ruff linter clean
+python -m ruff format --check app tests  # Code formatting clean
+python -m mypy app tests                 # Mypy static type checker clean
 ```
-
----
-
-## 9. Next Steps
-
-- **V20 Commit 01:** Established the dedicated regime analytics workspace at `/app/regimes`.
-- **V20 Commit 02:** Will deliver the quantitative risk analytics dashboard and backtesting execution interface.

@@ -1,0 +1,290 @@
+/**
+ * RegimeX Web — Portfolio Risk & Backtesting Test Fixtures
+ * =======================================================
+ * Deterministic mock data for testing Risk Analytics and Systematic
+ * Backtesting frontend workspaces.
+ */
+
+import type { MarketRiskResponse, MarketBacktestResponse } from "../../lib/api/types";
+
+export const MOCK_MARKET_RISK_RESPONSE: MarketRiskResponse = {
+  symbol: "SPY",
+  series_id: "SPY",
+  observation_count: 252,
+  start_timestamp: "2025-01-01T00:00:00Z",
+  end_timestamp: "2025-12-31T00:00:00Z",
+  computed_at: "2026-01-01T12:00:00Z",
+  return_statistics: {
+    mean_return: 0.00045,
+    median_return: 0.00032,
+    standard_deviation: 0.0112,
+    minimum_return: -0.0385,
+    maximum_return: 0.0342,
+    observation_count: 252,
+  },
+  volatility: {
+    period_volatility: 0.0112,
+    annualized_volatility: 0.1778,
+    periods_per_year: 252.0,
+  },
+  downside_risk: {
+    downside_deviation: 0.0078,
+    semi_variance: 0.00006084,
+    target_return: 0.0,
+    observation_count: 252,
+    downside_observation_count: 118,
+  },
+  drawdown: {
+    max_drawdown: -0.0985,
+    drawdown_magnitude: 0.0985,
+    peak_value: 512.45,
+    trough_value: 462.0,
+    peak_timestamp: "2025-07-15T00:00:00Z",
+    trough_timestamp: "2025-08-05T00:00:00Z",
+    recovery_timestamp: "2025-09-20T00:00:00Z",
+    is_recovered: true,
+  },
+  var_metrics: {
+    "0.90": {
+      confidence_level: 0.9,
+      var_loss: 0.0135,
+      return_quantile: -0.0135,
+      method: "Historical",
+      tail_observations: 25,
+      total_observations: 252,
+    },
+    "0.95": {
+      confidence_level: 0.95,
+      var_loss: 0.0182,
+      return_quantile: -0.0182,
+      method: "Historical",
+      tail_observations: 13,
+      total_observations: 252,
+    },
+    "0.99": {
+      confidence_level: 0.99,
+      var_loss: 0.0295,
+      return_quantile: -0.0295,
+      method: "Historical",
+      tail_observations: 3,
+      total_observations: 252,
+    },
+  },
+  expected_shortfall_metrics: {
+    "0.90": {
+      confidence_level: 0.9,
+      expected_shortfall: 0.0195,
+      tail_mean_return: -0.0195,
+      var_loss: 0.0135,
+      tail_observations: 25,
+      total_observations: 252,
+    },
+    "0.95": {
+      confidence_level: 0.95,
+      expected_shortfall: 0.0248,
+      tail_mean_return: -0.0248,
+      var_loss: 0.0182,
+      tail_observations: 13,
+      total_observations: 252,
+    },
+    "0.99": {
+      confidence_level: 0.99,
+      expected_shortfall: 0.0345,
+      tail_mean_return: -0.0345,
+      var_loss: 0.0295,
+      tail_observations: 3,
+      total_observations: 252,
+    },
+  },
+  price_points: [
+    {
+      timestamp: "2025-01-02T00:00:00Z",
+      price: 470.0,
+      period_return: null,
+      running_peak: 470.0,
+      drawdown: 0.0,
+    },
+    {
+      timestamp: "2025-01-03T00:00:00Z",
+      price: 474.0,
+      period_return: 0.0085,
+      running_peak: 474.0,
+      drawdown: 0.0,
+    },
+    {
+      timestamp: "2025-01-06T00:00:00Z",
+      price: 468.0,
+      period_return: -0.0126,
+      running_peak: 474.0,
+      drawdown: -0.0126,
+    },
+    {
+      timestamp: "2025-01-07T00:00:00Z",
+      price: 476.0,
+      period_return: 0.0171,
+      running_peak: 476.0,
+      drawdown: 0.0,
+    },
+  ],
+};
+
+export const MOCK_UNRECOVERED_RISK_RESPONSE: MarketRiskResponse = {
+  ...MOCK_MARKET_RISK_RESPONSE,
+  drawdown: {
+    ...MOCK_MARKET_RISK_RESPONSE.drawdown,
+    recovery_timestamp: null,
+    is_recovered: false,
+  },
+};
+
+export const MOCK_MARKET_BACKTEST_RESPONSE: MarketBacktestResponse = {
+  symbol: "SPY",
+  strategy_id: "BUY_AND_HOLD",
+  strategy_name: "Benchmark Buy and Hold",
+  execution_convention: "CURRENT_CLOSE",
+  initial_cash: 100_000.0,
+  final_cash: 250.0,
+  final_equity: 114_500.0,
+  total_return: 0.145,
+  annualized_return: 0.145,
+  absolute_pnl: 14_500.0,
+  realized_pnl: 0.0,
+  unrealized_pnl: 14_500.0,
+  total_fees: 110.0,
+  slippage_rate: 0.0005,
+  commission_rate: 0.0005,
+  trades: {
+    order_count: 1,
+    fill_count: 1,
+    completed_trade_count: 0,
+    winning_trades: 0,
+    losing_trades: 0,
+    win_rate: 0.0,
+    total_realized_pnl: 0.0,
+    average_trade_pnl: 0.0,
+    largest_winning_trade: 0.0,
+    largest_losing_trade: 0.0,
+  },
+  risk_metrics: {
+    volatility: 0.0112,
+    annualized_volatility: 0.1778,
+    maximum_drawdown: -0.0985,
+    drawdown_magnitude: 0.0985,
+    var_95: 0.0182,
+    expected_shortfall_95: 0.0248,
+  },
+  equity_curve: [
+    {
+      timestamp: "2025-01-02T00:00:00Z",
+      cash: 1000.0,
+      market_value: 99000.0,
+      equity: 100000.0,
+      fees: 50.0,
+      realized_pnl: 0.0,
+      unrealized_pnl: 0.0,
+      drawdown: 0.0,
+    },
+    {
+      timestamp: "2025-06-01T00:00:00Z",
+      cash: 1000.0,
+      market_value: 105000.0,
+      equity: 106000.0,
+      fees: 50.0,
+      realized_pnl: 0.0,
+      unrealized_pnl: 6000.0,
+      drawdown: 0.0,
+    },
+    {
+      timestamp: "2025-08-01T00:00:00Z",
+      cash: 1000.0,
+      market_value: 98000.0,
+      equity: 99000.0,
+      fees: 50.0,
+      realized_pnl: 0.0,
+      unrealized_pnl: -1000.0,
+      drawdown: -0.066,
+    },
+    {
+      timestamp: "2025-12-31T00:00:00Z",
+      cash: 250.0,
+      market_value: 114250.0,
+      equity: 114500.0,
+      fees: 110.0,
+      realized_pnl: 0.0,
+      unrealized_pnl: 14500.0,
+      drawdown: 0.0,
+    },
+  ],
+  executed_trades: [
+    {
+      timestamp: "2025-01-02T00:00:00Z",
+      symbol: "SPY",
+      side: "BUY",
+      quantity: 212,
+      price: 470.0,
+      commission: 50.0,
+      slippage: 50.0,
+    },
+  ],
+  report: {
+    report_id: "rep-f82b7190-2026",
+    report_version: "1.0",
+    generated_at: "2026-01-01T12:00:00Z",
+    methodology: {
+      common_period_policy: "Exact Overlap",
+      trade_definition: "Roundtrip Position",
+      risk_engine_source: "PortfolioRiskEngine (V13)",
+      return_type: "Discrete Relative Returns",
+      execution_engine_source: "EventDrivenBacktestEngine (V14)",
+    },
+    limitations: [
+      "Simulation assumes continuous market liquidity.",
+      "Execution slippage is modeled as fixed percentage basis points.",
+      "Past performance does not predict future regime distribution.",
+    ],
+    metric_definitions: [
+      {
+        metric_name: "total_return",
+        description: "Cumulative net percentage change in portfolio equity.",
+        unit: "percentage",
+        direction_semantics: "HIGHER_IS_BETTER",
+        source: "StrategyComparisonEngine",
+      },
+      {
+        metric_name: "maximum_drawdown",
+        description: "Greatest peak-to-trough drop in equity.",
+        unit: "percentage",
+        direction_semantics: "LOWER_IS_BETTER",
+        source: "PortfolioRiskEngine",
+      },
+    ],
+  },
+};
+
+export const MOCK_REGIME_ADAPTIVE_BACKTEST_RESPONSE: MarketBacktestResponse = {
+  ...MOCK_MARKET_BACKTEST_RESPONSE,
+  strategy_id: "REGIME_ADAPTIVE",
+  strategy_name: "Regime Adaptive Momentum",
+  trades: {
+    order_count: 6,
+    fill_count: 6,
+    completed_trade_count: 3,
+    winning_trades: 2,
+    losing_trades: 1,
+    win_rate: 0.6667,
+    total_realized_pnl: 8500.0,
+    average_trade_pnl: 2833.33,
+    largest_winning_trade: 6200.0,
+    largest_losing_trade: -1200.0,
+  },
+};
+
+export const MOCK_NEGATIVE_RETURN_BACKTEST_RESPONSE: MarketBacktestResponse = {
+  ...MOCK_MARKET_BACKTEST_RESPONSE,
+  final_equity: 88_000.0,
+  total_return: -0.12,
+  annualized_return: -0.12,
+  absolute_pnl: -12_000.0,
+  realized_pnl: -12_000.0,
+  unrealized_pnl: 0.0,
+};

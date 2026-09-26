@@ -25,6 +25,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.modules.backtesting.application.service import BacktestingService
 from app.modules.identity_access.application.dto import UserDTO
 from app.modules.identity_access.application.service import AuthenticationService
 from app.modules.identity_access.domain.password import PasswordHasher
@@ -34,6 +35,7 @@ from app.modules.market_data.application.registry import ProviderRegistry
 from app.modules.market_data.application.service import MarketDataService
 from app.modules.market_data.domain.provider import MarketDataProvider
 from app.modules.market_data.domain.repository import MarketDataRepository
+from app.modules.portfolio_risk.application.service import PortfolioRiskService
 from app.modules.regime_intelligence.application.facade import MarketIntelligenceFacade
 
 # =============================================================================
@@ -150,6 +152,32 @@ def market_intelligence_dep(
 
 
 MarketIntelligenceDep = Annotated[MarketIntelligenceFacade, Depends(market_intelligence_dep)]
+
+
+# =============================================================================
+# Portfolio Risk Service Dependency (V13 / V20)
+# =============================================================================
+
+
+def portfolio_risk_service_dep() -> PortfolioRiskService:
+    """Provide the application PortfolioRiskService."""
+    return PortfolioRiskService()
+
+
+PortfolioRiskServiceDep = Annotated[PortfolioRiskService, Depends(portfolio_risk_service_dep)]
+
+
+# =============================================================================
+# Backtesting Service Dependency (V14 / V15 / V20)
+# =============================================================================
+
+
+def backtesting_service_dep() -> BacktestingService:
+    """Provide the application BacktestingService."""
+    return BacktestingService()
+
+
+BacktestingServiceDep = Annotated[BacktestingService, Depends(backtesting_service_dep)]
 
 
 # =============================================================================
