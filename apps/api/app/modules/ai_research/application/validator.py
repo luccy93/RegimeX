@@ -265,6 +265,85 @@ class GroundingValidator:
                 f"**{mdd * 100:.2f}%** [{c_idx}]."
             )
 
+        elif intent == ResearchIntent.MODEL_EXPLANATION:
+            # Build explanation from model_explanation evidence packets
+            provenance_packet = next(
+                (
+                    p
+                    for p in evidence
+                    if p.source_type == "model_explanation"
+                    and p.metadata.get("explanation_type") == "model_provenance"
+                ),
+                None,
+            )
+            feature_packet = next(
+                (
+                    p
+                    for p in evidence
+                    if p.source_type == "model_explanation"
+                    and p.metadata.get("explanation_type") == "feature_context"
+                ),
+                None,
+            )
+            comparison_packet = next(
+                (
+                    p
+                    for p in evidence
+                    if p.source_type == "model_explanation"
+                    and p.metadata.get("explanation_type") == "regime_comparison"
+                ),
+                None,
+            )
+
+            if provenance_packet:
+                p_idx = citation_idx_map.get(provenance_packet.source_id, 1)
+                pf = provenance_packet.facts
+                model_name = pf.get("model_name", "Unknown")
+                algorithm = pf.get("algorithm", "Unknown")
+                model_version = pf.get("model_version", "Unknown")
+                cur_label = pf.get("current_regime_label", "UNKNOWN")
+                conf = pf.get("classification_confidence")
+                conf_str = f"**{conf * 100:.1f}%**" if conf is not None else "unavailable"
+                obs = pf.get("total_observations", 0)
+                feature_names = pf.get("feature_names", [])
+                feature_count = len(feature_names)
+
+                parts.append(
+                    f"The RegimeX **{algorithm}** model (model: {model_name}, "
+                    f"version: {model_version}) classified {sym} into the "
+                    f"**{cur_label}** regime with {conf_str} confidence [{p_idx}]."
+                )
+                parts.append(
+                    f"This classification was derived from **{feature_count}** engineered "
+                    f"features computed across **{obs}** historical observations [{p_idx}]."
+                )
+
+            if feature_packet:
+                f_idx = citation_idx_map.get(feature_packet.source_id, 1)
+                ff = feature_packet.facts
+                current_vals = ff.get("current_feature_values", {})
+                if current_vals:
+                    feature_lines: list[str] = []
+                    for fname, fval in list(current_vals.items())[:5]:
+                        if fval is not None:
+                            feature_lines.append(f"  - **{fname}**: {fval:.4f}")
+                    if feature_lines:
+                        parts.append(
+                            f"Current feature values at the latest observation [{f_idx}]:\n"
+                            + "\n".join(feature_lines)
+                        )
+
+            if comparison_packet:
+                c_idx = citation_idx_map.get(comparison_packet.source_id, 1)
+                cf = comparison_packet.facts
+                assigned = cf.get("assigned_regime_label", "UNKNOWN")
+                total_regimes = cf.get("total_regimes", 0)
+                parts.append(
+                    f"The model evaluated **{total_regimes}** candidate regime states and "
+                    f"assigned {sym} to **{assigned}** based on proximity of the current "
+                    f"feature values to the learned cluster centroids [{c_idx}]."
+                )
+
         elif market_packet:
             c_idx = citation_idx_map.get(market_packet.source_id, 1)
             facts = market_packet.facts

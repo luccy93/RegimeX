@@ -30,6 +30,7 @@ import {
   MOCK_CITATION_RISK,
   MOCK_EVIDENCE_PACKETS,
   MOCK_RESEARCH_RESPONSE_BULLISH,
+  MOCK_RESEARCH_RESPONSE_EXPLANATION,
   MOCK_CURRENT_REGIME_CONTEXT,
 } from "./fixtures/ai-research.fixture";
 
@@ -197,7 +198,7 @@ test("ResearchEvidencePanel — renders audit cards with source_id, model, and v
 // 5. ResearchEmptyState Tests
 // =============================================================================
 
-test("ResearchEmptyState — renders introductory hero, disclaimer, and 4 question categories", () => {
+test("ResearchEmptyState — renders introductory hero, disclaimer, and 5 question categories", () => {
   const html = renderToStaticMarkup(
     React.createElement(ResearchEmptyState, {
       onSelectPrompt: () => {},
@@ -215,7 +216,9 @@ test("ResearchEmptyState — renders introductory hero, disclaimer, and 4 questi
   assert.ok(html.includes("Markov Transitions"), "Category 2 rendered");
   assert.ok(html.includes("Portfolio Risk"), "Category 3 rendered");
   assert.ok(html.includes("Backtesting &amp; Assumptions"), "Category 4 rendered");
+  assert.ok(html.includes("Model Explanation"), "Category 5 rendered");
   assert.ok(html.includes("What regime is SPY currently in?"), "Question formatted with symbol");
+  assert.ok(html.includes("Why is SPY classified in this regime?"), "Explanation prompt formatted with symbol");
 });
 
 // =============================================================================
@@ -269,6 +272,32 @@ test("ResearchMessageCard — renders assistant grounded answer with inline cita
   assert.ok(html.includes("Grounded Citations"), "Citations footer rendered");
   assert.ok(html.includes("Inspect Audit Evidence →"), "Evidence button rendered");
   assert.ok(html.includes("Non-predictive"), "Financial disclaimer note rendered");
+});
+
+test("ResearchMessageCard — renders assistant grounded answer for MODEL_EXPLANATION intent", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(ResearchMessageCard, {
+      message: {
+        id: "a-explain-1",
+        role: "assistant",
+        content: MOCK_RESEARCH_RESPONSE_EXPLANATION.answer,
+        citations: MOCK_RESEARCH_RESPONSE_EXPLANATION.citations,
+        evidence: MOCK_RESEARCH_RESPONSE_EXPLANATION.evidence,
+        model: MOCK_RESEARCH_RESPONSE_EXPLANATION.model,
+        intent: MOCK_RESEARCH_RESPONSE_EXPLANATION.intent,
+        timestamp: "2026-09-26T20:00:05Z",
+        status: "complete",
+      },
+      onSelectCitation: () => {},
+      onOpenEvidencePanel: () => {},
+    })
+  );
+
+  assert.ok(html.includes("RegimeX Assistant"), "Assistant title rendered");
+  assert.ok(html.includes("MODEL_EXPLANATION"), "Intent badge rendered");
+  assert.ok(html.includes("HMM / GMM Ensemble"), "Model engine provenance rendered in text");
+  assert.ok(html.includes("research-citation-chip"), "Interactive citation chip rendered");
+  assert.ok(html.includes("Inspect Audit Evidence →"), "Evidence button rendered");
 });
 
 test("ResearchMessageCard — renders loading state with spinner", () => {

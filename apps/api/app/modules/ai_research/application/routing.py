@@ -121,6 +121,22 @@ MARKET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bohlcv\b", re.I),
 )
 
+MODEL_EXPLANATION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bwhy\s+(is|was|did)\s+.+?\s+(classified|assigned|labeled|detected)\b", re.I),
+    re.compile(r"\bhow did (the\s+)?model\s+(decide|determine|classify|assign|detect)\b", re.I),
+    re.compile(r"\bexplain (the\s+)?(classification|assignment|regime detection)\b", re.I),
+    re.compile(r"\bwhat (features?|inputs?|factors?)\s+(drove|caused|led to|contributed)\b", re.I),
+    re.compile(r"\bmodel (explanation|reasoning|logic|basis|confidence)\b", re.I),
+    re.compile(r"\bwhy (this|that) regime\b", re.I),
+    re.compile(r"\bwhat made (the\s+)?model\b", re.I),
+    re.compile(r"\bhow (confident|certain|sure) is the model\b", re.I),
+    re.compile(r"\bexplain (the\s+)?confidence\b", re.I),
+    re.compile(r"\bfeature (importance|contribution|impact)\b", re.I),
+    re.compile(r"\bwhy not\s+.+?\s+regime\b", re.I),
+    re.compile(r"\bwhat (algorithm|model)\s+(is|was)\s+(used|applied|running)\b", re.I),
+    re.compile(r"\bmodel (provenance|version|metadata)\b", re.I),
+)
+
 
 class IntentRouter:
     """
@@ -144,7 +160,12 @@ class IntentRouter:
             if pattern.search(clean_q):
                 return ResearchIntent.ADVICE_REFUSAL
 
-        # 2. Methodology & Model Assumptions (e.g. assumptions in backtests)
+        # 2. Model-Aware Explanation Queries
+        for pattern in MODEL_EXPLANATION_PATTERNS:
+            if pattern.search(clean_q):
+                return ResearchIntent.MODEL_EXPLANATION
+
+        # 3. Methodology & Model Assumptions (e.g. assumptions in backtests)
         for pattern in METHODOLOGY_PATTERNS:
             if pattern.search(clean_q):
                 return ResearchIntent.METHODOLOGY

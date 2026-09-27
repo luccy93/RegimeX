@@ -12,6 +12,10 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from app.modules.ai_research.application.explanation import (
+    ExplanationContextBuilder,
+    ModelExplanationPipeline,
+)
 from app.modules.ai_research.domain.models import EvidencePacket, ResearchIntent
 from app.modules.backtesting.domain.models import (
     ExecutionPriceConvention,
@@ -45,6 +49,9 @@ class EvidenceRetriever:
         self._risk_service = risk_service
         self._backtest_service = backtest_service
 
+        # Lazy-initialized explanation pipeline
+        self._explanation_pipeline: ModelExplanationPipeline | None = None
+
     async def retrieve_evidence(
         self,
         symbol: str | None,
@@ -62,6 +69,10 @@ class EvidenceRetriever:
         clean_symbol = symbol.strip().upper()
         now_utc = datetime.now(UTC)
         start_utc = now_utc - timedelta(days=365)
+
+        # MODEL_EXPLANATION intent uses the dedicated explanation pipeline
+        if intent == ResearchIntent.MODEL_EXPLANATION:
+            return await self._get_explanation_evidence(clean_symbol)
 
         # Order evidence packets prioritizing the primary subject of the analytical intent
         if intent in (
@@ -464,6 +475,18 @@ class EvidenceRetriever:
         except Exception as exc:
             logger.warning("Failed to retrieve backtest packet for %s: %s", symbol, exc)
             return None
+
+    async def _get_explanation_evidence(self, symbol: str) -> list[EvidencePacket]:
+        """Retrieve model explanation evidence using the dedicated pipeline."""
+        if self._explanation_pipeline is None:
+            context_builder = ExplanationContextBuilder(
+                market_service=self._market_service,
+                market_intelligence=self._market_intelligence,
+            )
+            self._explanation_pipeline = ModelExplanationPipeline(
+                context_builder=context_builder,
+            )
+        return await self._explanation_pipeline.build_explanation_evidence(symbol)
 
     def _build_methodology_packet(self) -> EvidencePacket:
         facts: dict[str, Any] = {

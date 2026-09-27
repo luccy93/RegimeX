@@ -93,6 +93,18 @@ export const MOCK_RESEARCH_REFUSAL_RESPONSE: ResearchResponseDTO = {
   symbol: "SPY",
 };
 
+export const MOCK_RESEARCH_RESPONSE_EXPLANATION: ResearchResponseDTO = {
+  answer:
+    "Based on RegimeX model analytics, SPY is classified in the **BULLISH** regime by the **HMM / GMM Ensemble** model (version 1.0) with **88.4%** confidence [1]. The primary features driving this classification include **annualized_volatility** (0.1425) and **return_mean** (0.0008) [1].",
+  citations: [MOCK_CITATION_REGIME],
+  evidence: MOCK_EVIDENCE_PACKETS,
+  model: "deterministic-grounded-v1",
+  generated_at: "2026-09-26T20:00:05Z",
+  request_id: "req-test-explanation",
+  intent: "MODEL_EXPLANATION",
+  symbol: "SPY",
+};
+
 export const MOCK_CURRENT_REGIME_CONTEXT: CurrentRegimeContextDTO = {
   current_regime_id: 0,
   current_regime_label: "BULLISH",

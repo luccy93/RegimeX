@@ -63,6 +63,16 @@ export function ResearchEmptyState({
         "Compare the current regime with historical regime profiles.",
       ],
     },
+    {
+      title: "Model Explanation",
+      badge: "Explainability",
+      icon: "🔍",
+      questions: [
+        `Why is ${sym} classified in this regime?`,
+        `What features drove the regime assignment for ${sym}?`,
+        `How confident is the model in ${sym}'s classification?`,
+      ],
+    },
   ];
 
   return (

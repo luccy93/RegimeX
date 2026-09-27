@@ -5766,6 +5766,10 @@ code, kbd, samp, pre {
   width: 100%;
 }
 
+.research-starters-grid > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .research-starter-category-card {
   transition: all 0.2s ease;
 }
