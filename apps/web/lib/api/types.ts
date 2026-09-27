@@ -407,3 +407,67 @@ export interface MarketBacktestResponse {
   executed_trades: BacktestTradeDTO[];
   report: PerformanceReportDTO;
 }
+
+// =============================================================================
+// AI Quantitative Research Assistant Models (V21 Commit 01)
+// =============================================================================
+
+export interface CitationDTO {
+  id: number;
+  source_id: string;
+  source_type: string;
+  title: string;
+  symbol?: string | null;
+  timestamp?: string | null;
+  model?: string | null;
+  facts_summary?: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface EvidencePacketDTO {
+  source_id: string;
+  source_type: string;
+  title: string;
+  facts: Record<string, unknown>;
+  timestamp?: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface ResearchQueryRequest {
+  question: string;
+  symbol?: string | null;
+  conversation_id?: string | null;
+  context?: Record<string, unknown>;
+  stream?: boolean;
+}
+
+export interface ResearchResponseDTO {
+  answer: string;
+  citations: CitationDTO[];
+  evidence: EvidencePacketDTO[];
+  model: string;
+  generated_at: string;
+  request_id: string;
+  intent: string;
+  symbol?: string | null;
+}
+
+export interface ResearchStreamEvent {
+  event: "metadata" | "evidence" | "token" | "citation" | "complete" | "error" | string;
+  data: Record<string, unknown>;
+}
+
+export interface ResearchMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations?: CitationDTO[];
+  evidence?: EvidencePacketDTO[];
+  model?: string;
+  timestamp: string;
+  intent?: string;
+  symbol?: string | null;
+  status?: "idle" | "loading" | "streaming" | "complete" | "error";
+  error?: string;
+}
+

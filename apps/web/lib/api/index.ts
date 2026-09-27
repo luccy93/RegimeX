@@ -21,3 +21,10 @@ export {
   formatCurrency as formatBacktestCurrency,
   type GetBacktestParams,
 } from "./backtesting";
+export {
+  queryResearchAssistant,
+  getInstrumentEvidenceContext,
+  streamResearchQuery,
+  type StreamEventCallbacks,
+} from "./research";
+

@@ -25,6 +25,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.modules.ai_research.application.service import AIResearchService
 from app.modules.backtesting.application.service import BacktestingService
 from app.modules.identity_access.application.dto import UserDTO
 from app.modules.identity_access.application.service import AuthenticationService
@@ -352,3 +353,33 @@ async def require_authenticated_user(
 RequireAuthenticatedUser = Annotated[UserDTO, Depends(require_authenticated_user)]
 CurrentUserDep = RequireAuthenticatedUser
 CurrentUser = RequireAuthenticatedUser
+
+
+# =============================================================================
+# AI Research Assistant Dependency (V21 Commit 01)
+# =============================================================================
+
+
+def ai_research_service_dep(
+    market_service: MarketServiceDep,
+    market_intelligence: MarketIntelligenceDep,
+    risk_service: PortfolioRiskServiceDep,
+    backtest_service: BacktestingServiceDep,
+    settings: SettingsDep,
+) -> AIResearchService:
+    """Provide the application AIResearchService facade."""
+    from app.modules.ai_research.infrastructure.providers.factory import (
+        get_model_provider,
+    )
+
+    provider = get_model_provider(settings)
+    return AIResearchService(
+        market_service=market_service,
+        market_intelligence=market_intelligence,
+        risk_service=risk_service,
+        backtest_service=backtest_service,
+        provider=provider,
+    )
+
+
+AIResearchServiceDep = Annotated[AIResearchService, Depends(ai_research_service_dep)]

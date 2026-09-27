@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, health, markets
+from app.api.v1.endpoints import ai_research, auth, health, markets
 
 v1_router = APIRouter(prefix="/api/v1")
 
@@ -27,6 +27,7 @@ v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(health.router)
 v1_router.include_router(markets.router)
 v1_router.include_router(auth.router)
+v1_router.include_router(ai_research.router)
 
 
 # -------------------------------------------------------------------------
@@ -41,6 +42,5 @@ v1_router.include_router(auth.router)
 # v1_router.include_router(risk_analytics.router)      # V10
 # v1_router.include_router(backtesting.router)         # V11
 # v1_router.include_router(research_workspace.router)  # V12
-# v1_router.include_router(ai_research.router)         # V21
 # v1_router.include_router(identity_access.router)     # V15
 # v1_router.include_router(administration.router)      # V16

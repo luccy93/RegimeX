@@ -1,58 +1,61 @@
-import React from "react";
-import Link from "next/link";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import React, { Suspense } from "react";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
+import { ResearchWorkspace } from "@/components/research/ResearchWorkspace";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 
 export const metadata = {
-  title: "AI Research",
-  description: "RegimeX AI Quantitative Research Assistant",
+  title: "AI Research Assistant",
+  description:
+    "Grounded quantitative market research assistant operating over platform regimes, transition matrices, portfolio risk, and historical backtests.",
 };
+
+function ResearchWorkspaceSkeleton() {
+  return (
+    <div
+      className="research-workspace-skeleton"
+      aria-busy="true"
+      aria-label="Loading AI Research Assistant"
+    >
+      <div className="research-header-skeleton">
+        <div style={{ marginBottom: "1rem" }}>
+          <Skeleton shape="text" style={{ width: "20rem", height: "2.25rem", marginBottom: "0.5rem" }} />
+          <Skeleton shape="text" style={{ width: "32rem", height: "1rem" }} />
+        </div>
+        <Skeleton shape="rect" style={{ height: "3rem", width: "100%", marginBottom: "1.5rem" }} />
+      </div>
+
+      <div style={{ flex: 1, minHeight: "350px", marginBottom: "1.5rem" }}>
+        <Card variant="bordered">
+          <CardHeader>
+            <Skeleton shape="text" style={{ width: "16rem", height: "1.5rem" }} />
+          </CardHeader>
+          <CardContent>
+            <Skeleton shape="rect" style={{ height: "18rem", width: "100%" }} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="research-composer-skeleton">
+        <Skeleton shape="rect" style={{ height: "4.5rem", width: "100%" }} />
+      </div>
+    </div>
+  );
+}
 
 export default function ResearchPage() {
   return (
-    <div className="module-placeholder-page">
+    <div className="research-page-container">
       <Breadcrumbs
         items={[
           { label: "Console", href: "/app" },
-          { label: "Research", isCurrent: true },
+          { label: "AI Research Assistant", isCurrent: true },
         ]}
       />
 
-      <header className="page-header">
-        <div className="page-header-title-row">
-          <h1 className="page-title">AI Research Assistant</h1>
-          <Badge variant="outline" size="md">
-            Scheduled for V21
-          </Badge>
-        </div>
-        <p className="page-subtitle">
-          Grounded quantitative query assistant operating over platform models and regime data.
-        </p>
-      </header>
-
-      <Card variant="elevated">
-        <CardHeader>
-          <CardTitle>Module Foundation Established</CardTitle>
-          <CardDescription>
-            Grounded LLM research agent design and knowledge base retrieval pipeline scheduled for Volume 21.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="placeholder-info-box">
-            <p className="placeholder-info-text">
-              Conversational quantitative research assistant, contextual code generation, and
-              formula derivation tools will be integrated into this workspace.
-            </p>
-          </div>
-          <div className="placeholder-actions">
-            <Link href="/app">
-              <Button variant="secondary">Back to Overview</Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<ResearchWorkspaceSkeleton />}>
+        <ResearchWorkspace />
+      </Suspense>
     </div>
   );
 }

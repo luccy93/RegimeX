@@ -670,15 +670,107 @@ class LoginResponse(BaseModel):
     user: UserResponse = Field(description="Authenticated user identity")
 
 
+# =============================================================================
+# AI Research Assistant Models (V21)
+# =============================================================================
+
+
+class ResearchQueryRequest(BaseModel):
+    """Query payload submitted to the AI quantitative research assistant."""
+
+    model_config = ConfigDict(frozen=True)
+
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Natural language market research question",
+    )
+    symbol: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Optional target instrument ticker symbol",
+    )
+    conversation_id: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Optional client conversation tracking identifier",
+    )
+    context: dict[str, object] | None = Field(
+        default=None,
+        description="Optional contextual client state",
+    )
+    stream: bool = Field(
+        default=False,
+        description="Request response streamed via Server-Sent Events (SSE)",
+    )
+
+
+class CitationDTO(BaseModel):
+    """Citation linking a quantitative assertion to its source EvidencePacket."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int = Field(
+        ..., ge=1, description="Numeric citation marker matching in-text brackets, e.g. 1 for [1]"
+    )
+    source_id: str = Field(..., description="Referenced EvidencePacket source ID")
+    source_type: str = Field(..., description="Domain source category")
+    title: str = Field(..., description="Citation title")
+    symbol: str | None = Field(default=None, description="Instrument ticker symbol")
+    timestamp: str | None = Field(default=None, description="Evidence observation timestamp")
+    model: str | None = Field(default=None, description="Model provenance or algorithm")
+    facts_summary: str | None = Field(default=None, description="Brief summary of cited metrics")
+    details: dict[str, object] = Field(
+        default_factory=dict, description="Auditable metadata dictionary"
+    )
+
+
+class EvidencePacketDTO(BaseModel):
+    """Verified factual evidence packet extracted from platform engines."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source_id: str = Field(..., description="Canonical source ID")
+    source_type: str = Field(..., description="Domain source type")
+    title: str = Field(..., description="Human-readable title")
+    facts: dict[str, object] = Field(default_factory=dict, description="Verified factual values")
+    timestamp: str | None = Field(default=None, description="Observation timestamp")
+    metadata: dict[str, object] = Field(default_factory=dict, description="Technical metadata")
+
+
+class ResearchResponseDTO(BaseModel):
+    """Grounded AI research assistant response envelope."""
+
+    model_config = ConfigDict(frozen=True)
+
+    answer: str = Field(..., description="Grounded quantitative explanation")
+    citations: list[CitationDTO] = Field(
+        default_factory=list,
+        description="Explicit citations backing factual assertions",
+    )
+    evidence: list[EvidencePacketDTO] = Field(
+        default_factory=list,
+        description="Audited evidence packets supplied for grounding",
+    )
+    model: str = Field(..., description="Provider or model that generated the answer")
+    generated_at: str = Field(..., description="ISO 8601 UTC generation timestamp")
+    request_id: str = Field(..., description="Request correlation identifier")
+    intent: str = Field(..., description="Classified analytical intent")
+    symbol: str | None = Field(default=None, description="Resolved instrument symbol")
+
+
 __all__ = [
     "ApiError",
     "ApiErrorDetail",
     "BacktestRiskMetricsDTO",
     "BacktestTradeDTO",
+    "CitationDTO",
     "CurrentRegimeContextDTO",
     "DownsideRiskMetricsDTO",
     "DrawdownMetricsDTO",
     "EquitySnapshotDTO",
+    "EvidencePacketDTO",
     "ExpectedShortfallMetricsDTO",
     "FeatureStatisticDTO",
     "GlobalTransitionAnalyticsDTO",
@@ -701,6 +793,8 @@ __all__ = [
     "RegimeProfileDTO",
     "RegisterRequest",
     "RegisterResponse",
+    "ResearchQueryRequest",
+    "ResearchResponseDTO",
     "ReturnStatisticsDTO",
     "RiskPricePointDTO",
     "RootResponse",

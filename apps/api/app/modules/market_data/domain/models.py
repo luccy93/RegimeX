@@ -264,6 +264,11 @@ class MarketDataQuery(BaseModel):
             )
         return self
 
+    @property
+    def symbol(self) -> str:
+        """Convenience accessor for queried instrument symbol."""
+        return self.instrument.symbol
+
 
 # =============================================================================
 # Market Data Result model
