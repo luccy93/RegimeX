@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -760,6 +761,274 @@ class ResearchResponseDTO(BaseModel):
     symbol: str | None = Field(default=None, description="Resolved instrument symbol")
 
 
+# =============================================================================
+# Health & Observability Response Models (V23 Commit 02)
+# =============================================================================
+
+
+class DataFreshnessDTO(BaseModel):
+    """Observation freshness metrics and status."""
+
+    model_config = ConfigDict(frozen=True)
+
+    latest_observation_time: str | None = Field(
+        default=None, description="ISO 8601 UTC timestamp of latest bar"
+    )
+    freshness_seconds: float | None = Field(
+        default=None, description="Age in seconds relative to current time"
+    )
+    market_open: bool = Field(
+        description="True if the market is currently in an open trading session"
+    )
+    calendar_id: str = Field(description="Exchange calendar identifier")
+    status: str = Field(description="Freshness status (HEALTHY, DEGRADED, STALE, UNKNOWN)")
+    reason: str | None = Field(default=None, description="Factual explanation of freshness state")
+
+
+class DataCompletenessDTO(BaseModel):
+    """Observation completeness and gap metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    expected_rows: int = Field(description="Expected rows based on calendar schedule")
+    received_rows: int = Field(description="Received observation rows")
+    missing_rows: int = Field(description="Count of missing observation bars")
+    duplicate_rows: int = Field(description="Count of duplicate timestamps")
+    completeness_ratio: float = Field(description="Ratio of received to expected rows in [0, 1]")
+    status: str = Field(description="Completeness health status")
+
+
+class DataValidityDTO(BaseModel):
+    """Validation gates and issue breakdown from authoritative validation layer."""
+
+    model_config = ConfigDict(frozen=True)
+
+    is_valid: bool = Field(description="True if data passed critical validation gates")
+    critical_issues_count: int = Field(description="Count of critical integrity violations")
+    warning_issues_count: int = Field(description="Count of non-fatal warnings")
+    failed_rule_ids: list[str] = Field(
+        default_factory=list, description="IDs of rules triggering critical failures"
+    )
+    violations_by_category: dict[str, int] = Field(
+        default_factory=dict, description="Violation counts grouped by category"
+    )
+    status: str = Field(description="Validity status (HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN)")
+
+
+class ProviderHealthDTO(BaseModel):
+    """Operational health metrics for an upstream market data provider."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_id: str = Field(description="Provider identifier")
+    status: str = Field(
+        description="Availability status (AVAILABLE, DEGRADED, UNAVAILABLE, UNKNOWN)"
+    )
+    request_count: int = Field(description="Total requests issued")
+    success_count: int = Field(description="Successful requests")
+    failure_count: int = Field(description="Failed requests")
+    consecutive_failures: int = Field(description="Current consecutive failure streak")
+    failure_rate: float = Field(description="Failure rate in [0, 1]")
+    avg_latency_ms: float = Field(description="Average request latency in milliseconds")
+    last_successful_request: str | None = Field(
+        default=None, description="ISO 8601 UTC timestamp of last success"
+    )
+    last_failure: str | None = Field(
+        default=None, description="ISO 8601 UTC timestamp of last failure"
+    )
+    last_error_category: str | None = Field(
+        default=None, description="Classification of last error encountered"
+    )
+
+
+class PipelineStageHealthDTO(BaseModel):
+    """Health of an individual data pipeline stage."""
+
+    model_config = ConfigDict(frozen=True)
+
+    stage: str = Field(description="Stage name")
+    status: str = Field(description="Stage health status")
+    last_run: str | None = Field(
+        default=None, description="ISO 8601 UTC timestamp of last execution"
+    )
+    details: dict[str, Any] = Field(default_factory=dict, description="Stage diagnostic metadata")
+
+
+class PipelineHealthDTO(BaseModel):
+    """Consolidated pipeline health."""
+
+    model_config = ConfigDict(frozen=True)
+
+    overall_status: str = Field(description="Consolidated pipeline health status")
+    stages: dict[str, PipelineStageHealthDTO] = Field(
+        default_factory=dict, description="Status per pipeline stage"
+    )
+
+
+class DataHealthResponseDTO(BaseModel):
+    """Market data health snapshot for a single symbol."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(description="Instrument ticker symbol")
+    timestamp: str = Field(description="ISO 8601 UTC evaluation timestamp")
+    status: str = Field(
+        description="Overall data health status (HEALTHY, DEGRADED, UNHEALTHY, STALE, UNKNOWN)"
+    )
+    freshness: DataFreshnessDTO
+    completeness: DataCompletenessDTO
+    validity: DataValidityDTO
+    provider: ProviderHealthDTO | None = None
+    pipeline: PipelineHealthDTO | None = None
+    summary: str = Field(description="Descriptive factual summary")
+
+
+class DataHealthListResponseDTO(BaseModel):
+    """List of market data health snapshots."""
+
+    model_config = ConfigDict(frozen=True)
+
+    items: list[DataHealthResponseDTO]
+    total: int
+
+
+class PredictionValidityDTO(BaseModel):
+    """Prediction output validity metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total_predictions: int = Field(description="Evaluated predictions count")
+    valid_predictions: int = Field(description="Count of valid predictions")
+    invalid_predictions: int = Field(description="Count of invalid predictions")
+    invalid_regime_ids: int = Field(description="Regime ID range violation count")
+    non_finite_values: int = Field(description="NaN / Inf occurrence count")
+    invalid_probability_vectors: int = Field(description="Probability vector violation count")
+    status: str = Field(description="Validity status")
+    violations: list[str] = Field(default_factory=list, description="Violation notices sample")
+
+
+class ModelExecutionDTO(BaseModel):
+    """Model execution telemetry."""
+
+    model_config = ConfigDict(frozen=True)
+
+    prediction_count: int = Field(description="Total prediction invocations")
+    failure_count: int = Field(description="Failed invocations count")
+    failure_rate: float = Field(description="Execution failure rate")
+    avg_latency_ms: float = Field(description="Average prediction latency in milliseconds")
+    status: str = Field(description="Execution health status")
+
+
+class ModelConfidenceDTO(BaseModel):
+    """Model confidence distribution and certainty metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mean_confidence: float | None = Field(default=None, description="Average confidence score")
+    min_confidence: float | None = Field(default=None, description="Minimum confidence score")
+    max_confidence: float | None = Field(default=None, description="Maximum confidence score")
+    std_confidence: float | None = Field(
+        default=None, description="Standard deviation of confidence"
+    )
+    low_confidence_count: int = Field(description="Count of predictions below threshold")
+    low_confidence_ratio: float = Field(description="Ratio of low confidence predictions")
+    missing_confidence_count: int = Field(description="Count of predictions missing confidence")
+    status: str = Field(description="Confidence health status")
+
+
+class ModelStabilityDTO(BaseModel):
+    """Operational stability and regime persistence metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    regime_switching_frequency: float = Field(description="Switching frequency in [0, 1]")
+    consecutive_stable_bars: int = Field(description="Longest uninterrupted run in one regime")
+    confidence_variability: float = Field(description="Confidence variability")
+    status: str = Field(description="Stability health status")
+
+
+class RegimeDistributionDTO(BaseModel):
+    """Empirical regime distribution over evaluated window."""
+
+    model_config = ConfigDict(frozen=True)
+
+    sample_count: int = Field(description="Observation count in distribution")
+    regime_counts: dict[str, int] = Field(description="Frequencies per canonical regime")
+    regime_percentages: dict[str, float] = Field(description="Percentages per canonical regime")
+    entropy: float = Field(description="Empirical Shannon entropy in nats")
+
+
+class DistributionDriftDTO(BaseModel):
+    """Statistical distribution divergence metrics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    metric_name: str = Field(description="Evaluated distribution name")
+    method: str = Field(
+        description="Divergence algorithm employed (jensen_shannon, psi, total_variation)"
+    )
+    drift_score: float = Field(description="Computed divergence statistic")
+    threshold: float = Field(description="Drift threshold")
+    is_drift_detected: bool = Field(description="True if drift_score exceeds threshold")
+    reference_distribution: dict[str, float] = Field(
+        default_factory=dict, description="Reference distribution"
+    )
+    comparison_distribution: dict[str, float] = Field(
+        default_factory=dict, description="Comparison distribution"
+    )
+    status: str = Field(description="Drift status")
+
+
+class ModelHealthResponseDTO(BaseModel):
+    """Comprehensive health snapshot for a single regime detection model."""
+
+    model_config = ConfigDict(frozen=True)
+
+    model_id: str = Field(description="Model identifier (e.g. kmeans, gmm, hmm, ensemble)")
+    timestamp: str = Field(description="ISO 8601 UTC timestamp")
+    status: str = Field(
+        description="Consolidated model health status (HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN)"
+    )
+    validity: PredictionValidityDTO
+    execution: ModelExecutionDTO
+    confidence: ModelConfidenceDTO
+    stability: ModelStabilityDTO
+    regime_distribution: RegimeDistributionDTO
+    drift: DistributionDriftDTO | None = None
+    summary: str = Field(description="Descriptive operational summary")
+
+
+class ModelHealthListResponseDTO(BaseModel):
+    """List of model health snapshots."""
+
+    model_config = ConfigDict(frozen=True)
+
+    items: list[ModelHealthResponseDTO]
+    total: int
+
+
+class ProviderHealthListResponseDTO(BaseModel):
+    """List of provider health snapshots."""
+
+    model_config = ConfigDict(frozen=True)
+
+    items: list[ProviderHealthDTO]
+    total: int
+
+
+class SystemHealthSummaryResponseDTO(BaseModel):
+    """Consolidated platform operational health summary."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str = Field(description="Consolidated system health status")
+    timestamp: str = Field(description="ISO 8601 UTC timestamp")
+    components: dict[str, Any] = Field(description="Subsystem status summaries")
+    active_models: list[str] = Field(description="Active monitored models")
+    active_providers: list[str] = Field(description="Active monitored providers")
+    details: dict[str, Any] = Field(default_factory=dict, description="Additional platform details")
+
+
 __all__ = [
     "ApiError",
     "ApiErrorDetail",
@@ -767,6 +1036,12 @@ __all__ = [
     "BacktestTradeDTO",
     "CitationDTO",
     "CurrentRegimeContextDTO",
+    "DataCompletenessDTO",
+    "DataFreshnessDTO",
+    "DataHealthListResponseDTO",
+    "DataHealthResponseDTO",
+    "DataValidityDTO",
+    "DistributionDriftDTO",
     "DownsideRiskMetricsDTO",
     "DrawdownMetricsDTO",
     "EquitySnapshotDTO",
@@ -786,10 +1061,21 @@ __all__ = [
     "MarketTransitionResponse",
     "MethodologyDTO",
     "MetricDefinitionDTO",
+    "ModelConfidenceDTO",
+    "ModelExecutionDTO",
+    "ModelHealthListResponseDTO",
+    "ModelHealthResponseDTO",
+    "ModelStabilityDTO",
     "OHLCVBarResponse",
     "PerformanceReportDTO",
+    "PipelineHealthDTO",
+    "PipelineStageHealthDTO",
+    "PredictionValidityDTO",
+    "ProviderHealthDTO",
+    "ProviderHealthListResponseDTO",
     "RankedDestinationDTO",
     "ReadinessResponse",
+    "RegimeDistributionDTO",
     "RegimeProfileDTO",
     "RegisterRequest",
     "RegisterResponse",
@@ -798,6 +1084,7 @@ __all__ = [
     "ReturnStatisticsDTO",
     "RiskPricePointDTO",
     "RootResponse",
+    "SystemHealthSummaryResponseDTO",
     "TradeStatisticsDTO",
     "TransitionProbabilityDTO",
     "TransitionRegimeAnalyticsDTO",

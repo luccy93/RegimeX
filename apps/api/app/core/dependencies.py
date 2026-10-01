@@ -36,6 +36,7 @@ from app.modules.market_data.application.registry import ProviderRegistry
 from app.modules.market_data.application.service import MarketDataService
 from app.modules.market_data.domain.provider import MarketDataProvider
 from app.modules.market_data.domain.repository import MarketDataRepository
+from app.modules.observability.application.service import HealthMonitoringService
 from app.modules.portfolio_risk.application.service import PortfolioRiskService
 from app.modules.regime_intelligence.application.facade import MarketIntelligenceFacade
 
@@ -383,3 +384,24 @@ def ai_research_service_dep(
 
 
 AIResearchServiceDep = Annotated[AIResearchService, Depends(ai_research_service_dep)]
+
+
+# =============================================================================
+# Observability & Health Monitoring Dependency (V23 Commit 02)
+# =============================================================================
+
+
+def health_monitoring_service_dep(
+    settings: SettingsDep,
+) -> HealthMonitoringService:
+    """Provide the application HealthMonitoringService facade."""
+    from app.modules.observability.application.service import (
+        get_health_monitoring_service,
+    )
+
+    return get_health_monitoring_service()
+
+
+HealthMonitoringServiceDep = Annotated[
+    HealthMonitoringService, Depends(health_monitoring_service_dep)
+]

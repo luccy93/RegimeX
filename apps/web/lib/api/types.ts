@@ -471,3 +471,168 @@ export interface ResearchMessage {
   error?: string;
 }
 
+// =============================================================================
+// Health & Observability Models (V23 Commit 02)
+// =============================================================================
+
+export type OperationalHealthStatus = "HEALTHY" | "DEGRADED" | "UNHEALTHY" | "STALE" | "UNKNOWN";
+export type OperationalProviderStatus = "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+
+export interface DataFreshnessDTO {
+  latest_observation_time: string | null;
+  freshness_seconds: number | null;
+  market_open: boolean;
+  calendar_id: string;
+  status: OperationalHealthStatus | string;
+  reason: string | null;
+}
+
+export interface DataCompletenessDTO {
+  expected_rows: number;
+  received_rows: number;
+  missing_rows: number;
+  duplicate_rows: number;
+  completeness_ratio: number;
+  status: OperationalHealthStatus | string;
+}
+
+export interface DataValidityDTO {
+  is_valid: boolean;
+  critical_issues_count: number;
+  warning_issues_count: number;
+  failed_rule_ids: string[];
+  violations_by_category: Record<string, number>;
+  status: OperationalHealthStatus | string;
+}
+
+export interface ProviderHealthDTO {
+  provider_id: string;
+  status: OperationalProviderStatus | string;
+  request_count: number;
+  success_count: number;
+  failure_count: number;
+  consecutive_failures: number;
+  failure_rate: number;
+  avg_latency_ms: number;
+  last_successful_request: string | null;
+  last_failure: string | null;
+  last_error_category: string | null;
+}
+
+export interface PipelineStageHealthDTO {
+  stage: string;
+  status: OperationalHealthStatus | string;
+  last_run: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface PipelineHealthDTO {
+  overall_status: OperationalHealthStatus | string;
+  stages: Record<string, PipelineStageHealthDTO>;
+}
+
+export interface DataHealthResponseDTO {
+  symbol: string;
+  timestamp: string;
+  status: OperationalHealthStatus | string;
+  freshness: DataFreshnessDTO;
+  completeness: DataCompletenessDTO;
+  validity: DataValidityDTO;
+  provider?: ProviderHealthDTO | null;
+  pipeline?: PipelineHealthDTO | null;
+  summary: string;
+}
+
+export interface DataHealthListResponseDTO {
+  items: DataHealthResponseDTO[];
+  total: number;
+}
+
+export interface PredictionValidityDTO {
+  total_predictions: number;
+  valid_predictions: number;
+  invalid_predictions: number;
+  invalid_regime_ids: number;
+  non_finite_values: number;
+  invalid_probability_vectors: number;
+  status: OperationalHealthStatus | string;
+  violations: string[];
+}
+
+export interface ModelExecutionDTO {
+  prediction_count: number;
+  failure_count: number;
+  failure_rate: number;
+  avg_latency_ms: number;
+  status: OperationalHealthStatus | string;
+}
+
+export interface ModelConfidenceDTO {
+  mean_confidence: number | null;
+  min_confidence: number | null;
+  max_confidence: number | null;
+  std_confidence: number | null;
+  low_confidence_count: number;
+  low_confidence_ratio: number;
+  missing_confidence_count: number;
+  status: OperationalHealthStatus | string;
+}
+
+export interface ModelStabilityDTO {
+  regime_switching_frequency: number;
+  consecutive_stable_bars: number;
+  confidence_variability: number;
+  status: OperationalHealthStatus | string;
+}
+
+export interface RegimeDistributionDTO {
+  sample_count: number;
+  regime_counts: Record<string, number>;
+  regime_percentages: Record<string, number>;
+  entropy: number;
+}
+
+export interface DistributionDriftDTO {
+  metric_name: string;
+  method: string;
+  drift_score: number;
+  threshold: number;
+  is_drift_detected: boolean;
+  reference_distribution: Record<string, number>;
+  comparison_distribution: Record<string, number>;
+  status: OperationalHealthStatus | string;
+}
+
+export interface ModelHealthResponseDTO {
+  model_id: string;
+  timestamp: string;
+  status: OperationalHealthStatus | string;
+  validity: PredictionValidityDTO;
+  execution: ModelExecutionDTO;
+  confidence: ModelConfidenceDTO;
+  stability: ModelStabilityDTO;
+  regime_distribution: RegimeDistributionDTO;
+  drift?: DistributionDriftDTO | null;
+  summary: string;
+}
+
+export interface ModelHealthListResponseDTO {
+  items: ModelHealthResponseDTO[];
+  total: number;
+}
+
+export interface ProviderHealthListResponseDTO {
+  items: ProviderHealthDTO[];
+  total: number;
+}
+
+export interface SystemHealthSummaryResponseDTO {
+  status: OperationalHealthStatus | string;
+  timestamp: string;
+  components: Record<string, { status: string }>;
+  active_models: string[];
+  active_providers: string[];
+  details: Record<string, unknown>;
+}
+
+

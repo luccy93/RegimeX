@@ -47,6 +47,12 @@ export function AppSidebar({ currentPath = "/app" }: AppSidebarProps) {
       isComingSoon: true,
       statusText: "V21",
     },
+    {
+      href: "/app/health",
+      label: "Health",
+      icon: "🩺",
+      isComingSoon: false,
+    },
   ];
 
   return (

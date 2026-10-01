@@ -206,6 +206,16 @@ def create_app() -> FastAPI:
     async def api_openapi_alias() -> Response:
         return JSONResponse(app.openapi())
 
+    # Prometheus telemetry scraping endpoint
+    @app.get("/metrics", include_in_schema=False)
+    async def root_metrics_endpoint() -> Response:
+        from app.modules.observability.infrastructure.metrics import metrics
+
+        return Response(
+            content=metrics.render_latest(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
     # -------------------------------------------------------------------------
     # Versioned Routers
     # -------------------------------------------------------------------------

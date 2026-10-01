@@ -241,6 +241,80 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Observability & Health Monitoring (V23 Commit 02)
+    # -------------------------------------------------------------------------
+    data_freshness_threshold_seconds: int = Field(
+        default=86400,
+        ge=60,
+        validation_alias=AliasChoices(
+            "DATA_FRESHNESS_THRESHOLD",
+            "REGIMEX_DATA_FRESHNESS_THRESHOLD",
+            "DATA_FRESHNESS_THRESHOLD_SECONDS",
+            "REGIMEX_DATA_FRESHNESS_THRESHOLD_SECONDS",
+        ),
+        description="Freshness SLA threshold in seconds for active trading days (default 24h)",
+    )
+    data_stale_threshold_seconds: int = Field(
+        default=259200,
+        ge=300,
+        validation_alias=AliasChoices(
+            "DATA_STALE_THRESHOLD",
+            "REGIMEX_DATA_STALE_THRESHOLD",
+            "DATA_STALE_THRESHOLD_SECONDS",
+            "REGIMEX_DATA_STALE_THRESHOLD_SECONDS",
+        ),
+        description="Threshold in seconds beyond which data is marked STALE (default 72h / 3 days)",
+    )
+    model_health_window: int = Field(
+        default=100,
+        ge=10,
+        validation_alias=AliasChoices(
+            "MODEL_HEALTH_WINDOW",
+            "REGIMEX_MODEL_HEALTH_WINDOW",
+        ),
+        description="Number of observations evaluated for model health metrics and stability",
+    )
+    model_low_confidence_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices(
+            "MODEL_LOW_CONFIDENCE_THRESHOLD",
+            "REGIMEX_MODEL_LOW_CONFIDENCE_THRESHOLD",
+        ),
+        description="Confidence score below which a prediction is counted as low confidence",
+    )
+    model_drift_threshold: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices(
+            "MODEL_DRIFT_THRESHOLD",
+            "REGIMEX_MODEL_DRIFT_THRESHOLD",
+        ),
+        description="Jensen-Shannon / TV drift threshold for regime prediction distributions",
+    )
+    data_drift_threshold: float = Field(
+        default=0.25,
+        ge=0.0,
+        validation_alias=AliasChoices(
+            "DATA_DRIFT_THRESHOLD",
+            "REGIMEX_DATA_DRIFT_THRESHOLD",
+        ),
+        description="PSI / distribution drift threshold for feature distributions",
+    )
+    observability_history_limit: int = Field(
+        default=50,
+        ge=5,
+        le=1000,
+        validation_alias=AliasChoices(
+            "OBSERVABILITY_HISTORY_LIMIT",
+            "REGIMEX_OBSERVABILITY_HISTORY_LIMIT",
+        ),
+        description="Maximum number of historical health snapshots retained in memory",
+    )
+
+    # -------------------------------------------------------------------------
     # Validators
     # -------------------------------------------------------------------------
     @field_validator("allowed_origins", mode="before")
