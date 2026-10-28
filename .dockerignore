@@ -48,14 +48,28 @@ htmlcov/
 
 # ---------------------------------------------------------------------------
 # Environment / secret files
-# NEVER include real .env files in the image.
+# NEVER include real .env files or credentials in the image.
 # ---------------------------------------------------------------------------
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.local
 apps/api/.env
+apps/api/.env.*
 apps/web/.env
+apps/web/.env.*
 apps/web/.env.local
+infra/.env
+infra/.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+secrets/
+credentials/
 
 # ---------------------------------------------------------------------------
 # Node.js artifacts (not needed for API image)

@@ -192,11 +192,34 @@ class ReadinessChecker:
     Evaluates application and infrastructure dependency readiness.
 
     Supports test overrides to simulate ready and not-ready states.
+    In test mode (REGIMEX_ENV=test), returns application: ok to keep offline tests fast.
+    In development/production, verifies database connectivity via a lightweight bounded ping.
     """
 
     async def check(self) -> dict[str, str]:
         """Perform readiness checks and return status mapping."""
-        return {"application": "ok"}
+        settings = get_settings()
+        results: dict[str, str] = {"application": "ok"}
+
+        if settings.is_test:
+            return results
+
+        # In dev/prod, perform lightweight bounded DB check
+        try:
+            import asyncio
+
+            from sqlalchemy import text
+
+            from app.core.database.session import get_engine
+
+            engine = get_engine()
+            async with engine.connect() as conn:
+                await asyncio.wait_for(conn.execute(text("SELECT 1")), timeout=2.0)
+            results["database"] = "ok"
+        except Exception:
+            results["database"] = "unavailable"
+
+        return results
 
 
 def readiness_checker_dep() -> ReadinessChecker:

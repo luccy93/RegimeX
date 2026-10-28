@@ -1,0 +1,130 @@
+# =============================================================================
+# RegimeX — Production Stack Compose Overlay
+# infra/docker-compose.prod.yml
+# =============================================================================
+#
+# Production configuration overlay for RegimeX.
+# Overlays infra/docker-compose.yml to establish hardened production defaults:
+#   - Resource limits (CPU and memory) applied to all services.
+#   - Database and Redis ports are NOT published to the host machine.
+#   - Insecure development defaults and local .env files are stripped.
+#   - Explicit production environment variables are enforced with required substitutions.
+#   - Restart policy upgraded to 'always'.
+#
+# Usage:
+#   Validate configuration:
+#     docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml config
+#
+#   Start production stack:
+#     docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d
+#
+#   Run migrations (one-off pre-deployment step):
+#     docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml run --rm api alembic upgrade head
+#
+# =============================================================================
+
+name: regimex-prod
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Database (TimescaleDB / PostgreSQL 16)
+  # ---------------------------------------------------------------------------
+  db:
+    restart: always
+    environment:
+      POSTGRES_DB: ${REGIMEX_DB_NAME:-regimex_prod}
+      POSTGRES_USER: ${REGIMEX_DB_USER:-regimex}
+      POSTGRES_PASSWORD: ${REGIMEX_DB_PASSWORD:?REGIMEX_DB_PASSWORD must be explicitly provided in production}
+    # Dynamic database health check matching production credentials
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Unpublish host port in production — database is only reachable via internal regimex_net
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Redis 7
+  # ---------------------------------------------------------------------------
+  redis:
+    restart: always
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel notice
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+    # Unpublish host port in production — Redis is only reachable via internal regimex_net
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # RegimeX API (FastAPI)
+  # ---------------------------------------------------------------------------
+  api:
+    restart: always
+    # Do not read local development .env file in production
+    env_file: !reset []
+    environment:
+      REGIMEX_ENV: production
+      REGIMEX_DEBUG: "false"
+      REGIMEX_DATABASE_URL: ${REGIMEX_DATABASE_URL:?REGIMEX_DATABASE_URL must be explicitly provided in production}
+      REGIMEX_SECRET_KEY: ${REGIMEX_SECRET_KEY:?REGIMEX_SECRET_KEY must be explicitly provided in production}
+      REGIMEX_ALLOWED_ORIGINS: ${REGIMEX_ALLOWED_ORIGINS:?REGIMEX_ALLOWED_ORIGINS must be explicitly provided in production}
+      REGIMEX_REDIS_URL: ${REGIMEX_REDIS_URL:-redis://redis:6379/0}
+      REGIMEX_CELERY_BROKER_URL: ${REGIMEX_CELERY_BROKER_URL:-redis://redis:6379/1}
+      REGIMEX_CELERY_RESULT_BACKEND: ${REGIMEX_CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      REGIMEX_LOG_FORMAT: json
+      REGIMEX_LOG_LEVEL: ${REGIMEX_LOG_LEVEL:-INFO}
+      REGIMEX_AI_PROVIDER: ${REGIMEX_AI_PROVIDER:-mock}
+      PORT: ${PORT:-8000}
+    ports: !reset
+      # Expose API port for reverse proxy / external traffic
+      - "${API_BIND_IP:-127.0.0.1}:${PORT:-8000}:${PORT:-8000}"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # RegimeX Web (Next.js Standalone)
+  # ---------------------------------------------------------------------------
+  web:
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: ${WEB_PORT:-3000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be explicitly provided in production}
+    ports: !reset
+      # Expose Web port for reverse proxy / browser traffic
+      - "${WEB_BIND_IP:-0.0.0.0}:${WEB_PORT:-3000}:${WEB_PORT:-3000}"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+        reservations:
+          cpus: "0.25"
+          memory: 192M

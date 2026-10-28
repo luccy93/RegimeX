@@ -38,12 +38,14 @@ def create_engine_and_session_factory(
     database_url: str | None = None,
     pool_size: int | None = None,
     max_overflow: int | None = None,
+    pool_timeout: float | None = None,
+    pool_recycle: int | None = None,
     echo: bool = False,
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     """
     Create a new async SQLAlchemy engine and session factory.
 
-    Configures connection pooling for PostgreSQL while adapting cleanly
+    Configures connection pooling and timeouts for PostgreSQL while adapting cleanly
     for SQLite test environments.
     """
     settings = get_settings()
@@ -64,7 +66,17 @@ def create_engine_and_session_factory(
         engine_kwargs["max_overflow"] = (
             max_overflow if max_overflow is not None else settings.database_max_overflow
         )
+        engine_kwargs["pool_timeout"] = (
+            pool_timeout if pool_timeout is not None else settings.database_pool_timeout
+        )
+        engine_kwargs["pool_recycle"] = (
+            pool_recycle if pool_recycle is not None else settings.database_pool_recycle
+        )
         engine_kwargs["pool_pre_ping"] = True
+        engine_kwargs["connect_args"] = {
+            "timeout": settings.database_connect_timeout,
+            "command_timeout": settings.database_statement_timeout_ms / 1000.0,
+        }
 
     engine = create_async_engine(url, **engine_kwargs)
     session_factory = async_sessionmaker(
@@ -93,13 +105,21 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def dispose_engine() -> None:
-    """Dispose of the global async engine and reset singletons."""
+    """Dispose of the global async engine with a bounded timeout and reset singletons."""
     global _engine, _session_factory
     if _engine is not None:
-        await _engine.dispose()
-        _engine = None
-        _session_factory = None
-        logger.info("Database engine disposed successfully")
+        try:
+            import asyncio
+
+            await asyncio.wait_for(_engine.dispose(), timeout=5.0)
+            logger.info("Database engine disposed successfully")
+        except TimeoutError:
+            logger.warning("Database engine disposal timed out after 5.0s")
+        except Exception as e:
+            logger.warning("Error during database engine disposal: %s", str(e))
+        finally:
+            _engine = None
+            _session_factory = None
 
 
 @asynccontextmanager

@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert";
-import { normalizeApiBaseUrl, getApiBaseUrl, getAppName, getAppVersion } from "../lib/config/env";
+import {
+  normalizeApiBaseUrl,
+  getApiBaseUrl,
+  getAppName,
+  getAppVersion,
+  isInternalContainerUrl,
+} from "../lib/config/env";
 
 test("Environment Configuration — normalizeApiBaseUrl sanitization", () => {
   // Valid http URL with trailing slashes
@@ -29,6 +35,16 @@ test("Environment Configuration — normalizeApiBaseUrl sanitization", () => {
   // Invalid protocol fallback to default for safety
   assert.strictEqual(normalizeApiBaseUrl("javascript:alert(1)"), "http://localhost:8000");
   assert.strictEqual(normalizeApiBaseUrl("file:///etc/passwd"), "http://localhost:8000");
+
+  // Internal Docker hostnames must not be shipped as client URLs
+  assert.strictEqual(isInternalContainerUrl("http://api:8000"), true);
+  assert.strictEqual(isInternalContainerUrl("http://regimex-api:8000"), true);
+  assert.strictEqual(isInternalContainerUrl("http://redis:6379"), true);
+  assert.strictEqual(isInternalContainerUrl("http://localhost:8000"), false);
+  assert.strictEqual(isInternalContainerUrl("https://api.regimex.io"), false);
+
+  assert.strictEqual(normalizeApiBaseUrl("http://api:8000"), "http://localhost:8000");
+  assert.strictEqual(normalizeApiBaseUrl("http://regimex-api:8000"), "http://localhost:8000");
 });
 
 test("Environment Configuration — fallback getters", () => {

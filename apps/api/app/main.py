@@ -49,6 +49,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     settings = get_settings()
 
+    # Configure structured logging according to environment settings
+    from app.core.logging import configure_logging
+
+    configure_logging(settings)
+
     logger.info(
         "RegimeX API starting",
         extra={
@@ -56,6 +61,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "version": settings.app_version,
             "env": settings.env.value,
             "api_prefix": settings.api_v1_prefix,
+            "host": settings.api_host,
+            "port": settings.api_port,
+            "database": settings.sanitized_database_url(),
         },
     )
 

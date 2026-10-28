@@ -13,9 +13,34 @@ const DEFAULT_API_BASE_URL = "http://localhost:8000";
 const DEFAULT_APP_NAME = "RegimeX";
 const DEFAULT_APP_VERSION = "0.1.0";
 
+const INTERNAL_CONTAINER_HOSTNAMES = new Set([
+  "api",
+  "regimex-api",
+  "web",
+  "regimex-web",
+  "db",
+  "regimex-db",
+  "redis",
+  "regimex-redis",
+]);
+
+/**
+ * Checks whether a given URL points to an internal Docker container hostname
+ * that cannot be resolved by external client browsers.
+ */
+export function isInternalContainerUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    return INTERNAL_CONTAINER_HOSTNAMES.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Normalizes an API base URL by trimming whitespace, removing trailing slashes,
- * and ensuring an allowed HTTP/HTTPS scheme.
+ * verifying protocol safety, and preventing internal Docker hostnames from
+ * being shipped as browser-facing client URLs.
  */
 export function normalizeApiBaseUrl(rawUrl?: string | null): string {
   if (!rawUrl || typeof rawUrl !== "string") {
@@ -33,6 +58,16 @@ export function normalizeApiBaseUrl(rawUrl?: string | null): string {
   // Basic security check: ensure valid protocol
   if (!stripped.startsWith("http://") && !stripped.startsWith("https://")) {
     // If invalid format or protocol, fall back to safe default
+    return DEFAULT_API_BASE_URL;
+  }
+
+  // Prevent internal Docker container hostnames from being used as client URLs
+  if (isInternalContainerUrl(stripped)) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn(
+        `[RegimeX Web] Warning: NEXT_PUBLIC_API_URL points to internal container hostname "${stripped}". Browser clients cannot resolve Docker internal hostnames. Falling back to "${DEFAULT_API_BASE_URL}".`
+      );
+    }
     return DEFAULT_API_BASE_URL;
   }
 
