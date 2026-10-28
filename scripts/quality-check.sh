@@ -98,6 +98,18 @@ run_check "Frontend: TypeScript check" \
     bash -c "cd '$WEB_DIR' && npm run type-check"
 
 # ---------------------------------------------------------------------------
+# 7. Frontend: unit tests
+# ---------------------------------------------------------------------------
+run_check "Frontend: unit tests" \
+    bash -c "cd '$WEB_DIR' && npm test"
+
+# ---------------------------------------------------------------------------
+# 8. Infrastructure: Docker Compose validation
+# ---------------------------------------------------------------------------
+run_check "Infrastructure: Docker Compose validation" \
+    bash -c "docker compose -f '$REPO_ROOT/infra/docker-compose.yml' config --quiet"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

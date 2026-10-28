@@ -1,5 +1,7 @@
 # RegimeX
 
+[![CI](https://github.com/luccy93/RegimeX/actions/workflows/ci.yml/badge.svg)](https://github.com/luccy93/RegimeX/actions/workflows/ci.yml)
+
 ### Open-Source Market Intelligence Platform
 
 RegimeX is an open-source platform that gives quantitative researchers, market analysts, and developers the infrastructure to understand market regimes — what they are, how they evolve, what risks they carry, and how strategies behave across them.
@@ -162,6 +164,9 @@ Module boundaries: [`V03/MODULE_BOUNDARIES.md`](V03/MODULE_BOUNDARIES.md)
 
 | Document | Purpose |
 |----------|---------|
+| [`docs/ci.md`](docs/ci.md) | Continuous Integration pipeline architecture and quality gates |
+| [`docs/deployment.md`](docs/deployment.md) | Production infrastructure, containerization, and operations |
+| [`docs/testing.md`](docs/testing.md) | Testing architecture, invariants, and golden fixtures |
 | [`docs/V04/README.md`](docs/V04/README.md) | V04 engineering guide — how the repo implements V03 |
 | [`docs/V04/ARCHITECTURE_GUARDRAILS.md`](docs/V04/ARCHITECTURE_GUARDRAILS.md) | Rules preventing architectural drift |
 | [`V03/ARCHITECTURE.md`](V03/ARCHITECTURE.md) | System architecture blueprint |

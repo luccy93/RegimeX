@@ -28,6 +28,7 @@
 .PHONY: help quality \
         backend-test backend-lint backend-format backend-format-check backend-typecheck \
         frontend-lint frontend-typecheck frontend-test frontend-build \
+        infra-validate \
         pre-commit-install pre-commit-run \
         clean
 
@@ -117,6 +118,21 @@ frontend-build: ## Run Next.js production build
 	@echo "▶  Frontend: running production build..."
 	cd $(WEB_DIR) && npm run build
 	@echo "✅  Frontend build succeeded."
+
+# =============================================================================
+# Infrastructure — Docker
+# =============================================================================
+
+infra-validate: ## Validate Docker Compose configurations
+	@echo "▶  Infra: validating compose configurations..."
+	docker compose -f infra/docker-compose.yml config --quiet
+	REGIMEX_DB_PASSWORD="dummy" \
+	REGIMEX_DATABASE_URL="postgresql+asyncpg://regimex:dummy@db:5432/regimex_prod" \
+	REGIMEX_SECRET_KEY="dummy-secret-key-at-least-32-chars-long" \
+	REGIMEX_ALLOWED_ORIGINS="http://localhost:3000" \
+	NEXT_PUBLIC_API_URL="http://localhost:8000" \
+	docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml config --quiet
+	@echo "✅  Infra compose validation passed."
 
 # =============================================================================
 # Pre-commit

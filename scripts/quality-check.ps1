@@ -89,6 +89,21 @@ Run-Check "Frontend: TypeScript check" {
     try { npm run type-check } finally { Pop-Location }
 }
 
+# 7. Frontend: unit tests
+Run-Check "Frontend: unit tests" {
+    Push-Location $WebDir
+    try { npm test } finally { Pop-Location }
+}
+
+# 8. Infrastructure: Docker Compose validation
+Run-Check "Infrastructure: Docker Compose validation" {
+    Push-Location $RepoRoot
+    try {
+        $env:DOCKER_CONFIG = "$env:TEMP\docker"
+        docker compose -f infra/docker-compose.yml config --quiet
+    } finally { Pop-Location }
+}
+
 Write-Host ""
 Write-Host "═══════════════════════════════════════════════════" -ForegroundColor Cyan
 if ($FailedChecks.Count -eq 0) {
