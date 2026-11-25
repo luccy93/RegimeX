@@ -573,3 +573,83 @@ Every production release records an immutable identity:
 - If self-hosting using Docker Compose, the workflow outputs release tags that can be pulled and started with `infra/docker-compose.prod.yml`.
 - When provider secrets are not configured, the workflow verifies SHA and CI status, records release metadata, and emits a clear informational notice without throwing an unhandled error.
 
+### 15.8 Automated Deployment Orchestration CLI (`scripts/deploy.py`)
+
+RegimeX provides a provider-independent deployment orchestrator implemented in [`app.core.deployment`](file:///apps/api/app/core/deployment.py) and exposed via [`scripts/deploy.py`](file:///scripts/deploy.py).
+
+The orchestrator enforces the exact deployment lifecycle:
+
+```bash
+python scripts/deploy.py \
+  --commit-sha "<40-char-sha>" \
+  --run-id "<run-id>" \
+  --environment "production" \
+  --release-tag "regimex-api:<sha>" \
+  --output-summary "deployment-summary.json" \
+  --allow-unconfigured
+```
+
+#### Orchestration Phases:
+1. **Exact-SHA Validation**: Validates full 40-character hexadecimal Git commit hash.
+2. **Provider Validation**: Checks adapter credentials. Fails closed with `NOT_CONFIGURED` if deployment target is unconfigured.
+3. **Database Migration Boundary**: Executes `alembic upgrade head` as a one-off pre-deployment step. If migration fails, deployment halts immediately; schema downgrades are never run.
+4. **Backend Deployment**: Triggers backend rollout via provider adapter (or Render webhook).
+5. **Frontend Deployment**: Triggers frontend rollout only after backend deployment succeeds.
+6. **Post-Deployment Verification**: Polls `/api/v1/health/live`, `/api/v1/health/ready`, and frontend URLs with bounded retries and exponential backoff.
+7. **Rollback & Recovery**: If deployment or health verification fails, dispatches provider rollback to restore the previous release, while preserving database schema forward-only.
+
+### 15.9 Post-Deployment Health Verification
+
+Automated post-deployment verification validates runtime health before declaring deployment success:
+
+- **Backend Liveness (`/api/v1/health/live`)**: Confirms the process is responsive and running.
+- **Backend Readiness (`/api/v1/health/ready`)**: Confirms database and Redis dependencies are connected and operational.
+- **Frontend Accessibility (`/`)**: Confirms the Next.js frontend is serving pages and routing requests.
+- **Retry & Timeout Policy**:
+  - Max retries: 5 attempts (configurable via `--max-retries`).
+  - Retry backoff: Exponential/fixed delay (default: 2.0s).
+  - Timeout: 15s per HTTP request.
+- **Unconfigured Provider Behavior**: When deployment credentials are not configured, health verification is marked as `BLOCKED` with an explanation, preventing false-positive verification.
+
+### 15.10 Deployment Rollback & Failure Recovery Contract
+
+- **Forward-Only Database Invariant**:
+  - If database migration fails, deployment immediately halts.
+  - **No automatic database downgrade (`alembic downgrade`) is ever executed.**
+  - Schema repairs must occur via forward hotfix migrations (`alembic revision --autogenerate`).
+- **Application Rollback**:
+  - If backend deployment, frontend deployment, or health verification fails, the adapter initiates rollback to the previous known-good deployment.
+  - All failure logs, stack traces, and HTTP error responses are preserved without logging sensitive credentials.
+  - Manual recovery instructions are printed in console output and included in the deployment summary.
+
+### 15.11 Machine-Readable Deployment Metadata Artifact
+
+Every deployment execution generates an auditable JSON report saved to `deployment-summary.json` and uploaded as a GitHub Actions workflow artifact (`deployment-summary`):
+
+```json
+{
+  "commit_sha": "5a4c7f5f9c91954f6ad569c4cd3008339aca003e",
+  "release_tag": "regimex-5a4c7f5f",
+  "run_id": "12345678",
+  "environment": "production",
+  "provider": "NOT_CONFIGURED",
+  "provider_status": "NOT_CONFIGURED",
+  "started_at": "2026-11-25T06:00:00Z",
+  "completed_at": "2026-11-25T06:01:00Z",
+  "deployment_timestamp": "2026-11-25T06:01:00Z",
+  "overall_status": "NOT_CONFIGURED",
+  "migration_status": "NOT_RUN",
+  "backend_deployment_status": "NOT_RUN",
+  "frontend_deployment_status": "NOT_RUN",
+  "verification_status": "BLOCKED",
+  "rollback_status": "NOT_RUN",
+  "error_message": "Deployment provider is NOT_CONFIGURED. Live deployment disabled.",
+  "recovery_steps": [
+    "Configure production deployment secrets in GitHub Repository Settings -> Environments -> production.",
+    "For Render managed hosting: configure RENDER_DEPLOY_HOOK_API and RENDER_DEPLOY_HOOK_WEB.",
+    "For containerized self-hosting: deploy verified image tags (regimex-api:<SHA>, regimex-web:<SHA>) via Docker Compose."
+  ],
+  "metadata": {}
+}
+```
+

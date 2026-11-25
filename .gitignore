@@ -158,6 +158,7 @@ desktop.ini
 *.bak
 *.orig
 *.rej
+deployment-summary.json
 
 # Jupyter Notebooks (not part of this project)
 .ipynb_checkpoints/

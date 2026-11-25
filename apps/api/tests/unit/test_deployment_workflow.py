@@ -160,3 +160,32 @@ def test_third_party_actions_pinned_to_full_commit_sha(workflow_content: str) ->
         assert len(ref) == 40 and all(c in "0123456789abcdefABCDEF" for c in ref), (
             f"Action {action_name} must be pinned to a 40-character commit SHA, found: {ref}"
         )
+
+
+def test_automated_deployment_orchestration_and_artifact_upload(
+    workflow_dict: dict[Any, Any],
+) -> None:
+    """Verify deployment job executes scripts/deploy.py and uploads deployment-summary.json."""
+    deploy_job = workflow_dict["jobs"]["deploy"]
+    steps = deploy_job.get("steps", [])
+
+    # Verify script execution step
+    exec_steps = [s for s in steps if "python scripts/deploy.py" in s.get("run", "")]
+    assert len(exec_steps) == 1, "Must contain exactly one scripts/deploy.py execution step"
+    exec_run = exec_steps[0]["run"]
+    assert "--commit-sha" in exec_run
+    assert "--run-id" in exec_run
+    assert "--output-summary" in exec_run
+    assert "deployment-summary.json" in exec_run
+    assert "--allow-unconfigured" in exec_run
+
+    # Verify artifact upload step
+    upload_steps = [s for s in steps if "upload-artifact" in s.get("uses", "")]
+    assert len(upload_steps) == 1, "Must contain artifact upload step"
+    upload_step = upload_steps[0]
+    assert upload_step.get("if") == "always()", (
+        "Artifact upload must run unconditionally (if: always())"
+    )
+    with_clause = upload_step.get("with", {})
+    assert with_clause.get("name") == "deployment-summary"
+    assert with_clause.get("path") == "deployment-summary.json"

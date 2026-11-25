@@ -341,3 +341,41 @@ Every release establishes immutable provenance:
   - `RENDER_DEPLOY_HOOK_API`, `RENDER_DEPLOY_HOOK_WEB` (for Render managed hosting).
 - **Sanitization Rule**: Secrets are never echoed, logged, or embedded into images or repository files.
 
+### 8.8 Automated Deployment Orchestration (`scripts/deploy.py`) (V25 Commit 03)
+The production deployment workflow executes [`scripts/deploy.py`](file:///scripts/deploy.py) backed by [`app.core.deployment.DeploymentOrchestrator`](file:///apps/api/app/core/deployment.py).
+- **Phased Pipeline**:
+  1. Commit SHA validation (rejects invalid/short hashes).
+  2. Provider adapter validation (`RenderWebhookAdapter` or `UnconfiguredProviderAdapter`). Fails closed if credentials are missing.
+  3. Pre-deployment database migrations (`alembic upgrade head`).
+  4. Backend container/service deployment.
+  5. Frontend container/service deployment.
+  6. Post-deployment health verification.
+  7. Automated rollback on failure (application rollback only; schema forward-only).
+- **Adapter Extensibility**: Clean adapter interface (`BaseProviderAdapter`) supporting webhook-based hosting (Render), container registry orchestration, or local Compose stacks.
+
+### 8.9 Post-Deployment Health Verification
+Post-deployment verification runs automatically after container deployment:
+- **Liveness probe**: Validates backend `/api/v1/health/live`.
+- **Readiness probe**: Validates backend `/api/v1/health/ready` (database, redis, workers).
+- **Frontend probe**: Validates web frontend accessibility at `/`.
+- **Retry policy**: Bounded retries (default 5 attempts, 2.0s delay, 15s request timeout).
+- **Status reporting**: Marked as `SUCCESS`, `FAILED`, or `BLOCKED` (when provider is unconfigured).
+
+### 8.10 Rollback & Forward-Only Migration Policy
+- **Forward-Only Database**: Under no circumstances will automated pipelines execute `alembic downgrade`. If migration fails, deployment terminates immediately. Any fixes must be applied via forward migrations.
+- **Application Rollback**: When health checks fail or deployment errors occur, the previous known-good deployment is restored via the provider adapter.
+- **Recovery Guidance**: Clear manual recovery steps are logged and provided in the summary metadata.
+
+### 8.11 Machine-Readable Metadata Artifact
+Every run writes `deployment-summary.json` and uploads it as a workflow artifact named `deployment-summary`. It captures:
+- `commit_sha`
+- `release_tag`
+- `deployment_timestamp`
+- `provider_status` (`NOT_CONFIGURED` when credentials are absent)
+- `migration_status`
+- `backend_deployment_status`
+- `frontend_deployment_status`
+- `verification_status`
+- `overall_status`
+- `recovery_steps` and `metadata`
+

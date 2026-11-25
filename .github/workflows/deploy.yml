@@ -205,25 +205,35 @@ jobs:
             echo "All core production secrets verified present."
           fi
 
-      - name: Execute deployment or document target status
+      - name: Set up Python 3.11
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.11"
+
+      - name: Execute automated deployment, verification, and recovery orchestration
         env:
+          DEPLOY_SHA: ${{ needs.verify.outputs.target_sha }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          DEPLOY_RELEASE_TAG: ${{ needs.verify.outputs.api_tag }}
+          DEPLOY_ENVIRONMENT: production
+          DEPLOY_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+          DEPLOY_WEB_URL: ${{ secrets.PRODUCTION_WEB_URL }}
+          REGIMEX_DATABASE_URL: ${{ secrets.REGIMEX_DATABASE_URL }}
           RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
           RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
         run: |
-          if [ -n "$RENDER_DEPLOY_HOOK_API" ] && [ -n "$RENDER_DEPLOY_HOOK_WEB" ]; then
-            echo "Triggering API service deployment webhook..."
-            curl -sS -X POST "$RENDER_DEPLOY_HOOK_API" > /dev/null
-            echo "Triggering Web service deployment webhook..."
-            curl -sS -X POST "$RENDER_DEPLOY_HOOK_WEB" > /dev/null
-            echo "Deployment webhook requests dispatched successfully."
-          else
-            echo "=================================================="
-            echo "  Deployment Target Notice"
-            echo "=================================================="
-            echo "Release commit ${{ needs.verify.outputs.target_sha }} is verified and approved for production."
-            echo "No external deployment provider webhooks or registry credentials are configured."
-            echo "To complete live automated dispatch, configure deployment target secrets"
-            echo "(e.g. RENDER_DEPLOY_HOOK_API, RENDER_DEPLOY_HOOK_WEB or container registry credentials)"
-            echo "in GitHub Repository Settings -> Environments -> production."
-            echo "=================================================="
-          fi
+          python scripts/deploy.py \
+            --commit-sha "${{ needs.verify.outputs.target_sha }}" \
+            --run-id "${{ github.run_id }}" \
+            --environment "production" \
+            --release-tag "${{ needs.verify.outputs.api_tag }}" \
+            --output-summary "deployment-summary.json" \
+            --allow-unconfigured
+
+      - name: Upload deployment summary metadata artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        if: always()
+        with:
+          name: deployment-summary
+          path: deployment-summary.json
+          if-no-files-found: warn
