@@ -188,3 +188,83 @@ In accordance with Volume V26 governance:
 - `production_deployment_authorized` is **always `false`**.
 - V26 prepares readiness evidence; live qualification and production rollouts remain strictly gated.
 
+---
+
+## 9. Hardened Staging Readiness Gates
+
+`scripts/evaluate_staging_readiness.py` provides the final, hardened qualification gate. It unifies preflight checks and concrete infrastructure evidence against 6 core readiness policies, enforcing evidence freshness, integrity, and strict governance boundaries:
+
+```
+┌────────────────────────────────────────────────────────┐
+│         scripts/evaluate_staging_readiness.py          │
+│                (Unified Gate Evaluator)                │
+└───────────────────────────┬────────────────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+┌───────────────────────────┐ ┌───────────────────────────┐
+│  StagingPreflightReport   │ │InfrastructureEvidenceReport│
+│    (Preflight Checks)     │ │   (Staging Evidence)      │
+└─────────────┬─────────────┘ └───────────┬───────────────┘
+              └─────────────┬─────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│         app.core.staging_gates.GateEvaluator           │
+│  [1] GATE-EVIDENCE-INTEGRITY: Freshness & SHA Match    │
+│  [2] GATE-HOST-RUNTIME: Host & Runtime Config          │
+│  [3] GATE-DOCKER-CONTAINER: Engine, Compose, Ports     │
+│  [4] GATE-IMMUTABLE-DIGESTS: Immutable @sha256 Digests │
+│  [5] GATE-SECRET-ISOLATION: Smoke vs Prod Separation   │
+│  [6] GATE-ROLLBACK-LIFECYCLE: Forward-Only & Backup    │
+│  [7] GATE-V26-GOVERNANCE: Strict V26 Invariants        │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│     app.schemas.staging_readiness.GateReport           │
+│  - Fail-closed gate evaluation                         │
+│  - live_qualification_authorized: false (strictly)    │
+│  - production_deployment_authorized: false (strictly) │
+│  - Gate Open: exit code 0 | Gate Closed: 1, 2, or 3   │
+└────────────────────────────────────────────────────────┘
+```
+
+### Core Gate Policies
+
+| Policy ID | Policy Name | Failure Status | Strict Gate Condition |
+|---|---|---|---|
+| `GATE-EVIDENCE-INTEGRITY` | Evidence Freshness & Integrity | `FAIL` / `BLOCKED` | Evidence age $\le 3600$s; preflight & evidence SHA match |
+| `GATE-HOST-RUNTIME` | Host & Runtime Prerequisites | `FAIL` / `BLOCKED` | Python 3.11+, writable workspace, valid DB URL, CORS |
+| `GATE-DOCKER-CONTAINER` | Staging Container Engine | `BLOCKED` / `FAIL` | Docker daemon accessible, Compose v2, storage $\ge 1$ GB |
+| `GATE-IMMUTABLE-DIGESTS` | Release Manifest & Immutable Digests | `FAIL` | Images pinned to `@sha256:...`; `:latest` prohibited |
+| `GATE-SECRET-ISOLATION` | Smoke-Test Secret Isolation | `FAIL` | Test credentials configured; zero collision with prod |
+| `GATE-ROLLBACK-LIFECYCLE` | Rollback & Forward-Only Lifecycle | `FAIL` / `WARNING` | Recovery runbooks present; forward-only schema policy |
+| `GATE-V26-GOVERNANCE` | Volume V26 Governance Boundary | `FAIL` | `live_qualification_authorized` must be `false` |
+
+### CLI Usage: `scripts/evaluate_staging_readiness.py`
+
+```bash
+# Evaluate readiness gates with human-readable text breakdown
+python scripts/evaluate_staging_readiness.py --format text
+
+# Evaluate against explicit preflight and evidence report artifacts
+python scripts/evaluate_staging_readiness.py \
+  --preflight-report staging-readiness-preflight.json \
+  --evidence-report staging-infrastructure-evidence.json \
+  --format text
+
+# Strict gate evaluation (treats warnings as failures)
+python scripts/evaluate_staging_readiness.py --strict
+
+# Machine-readable JSON gate summary
+python scripts/evaluate_staging_readiness.py --format json --output staging-gate-evaluation.json
+```
+
+### Exit Codes:
+- `0`: Gate Open (`PASS`). Staging environment is verified, authentic, and ready for qualification.
+- `1`: Gate Closed (`FAIL`). One or more policies failed validation or warnings escalated in strict mode.
+- `2`: Gate Blocked (`BLOCKED`). Critical prerequisite unavailable (e.g. Docker daemon down, evidence stale).
+- `3`: Gate Unconfigured (`NOT_CONFIGURED`). Required environment configuration or secrets missing.
+
+

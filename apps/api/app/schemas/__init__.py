@@ -9,6 +9,7 @@ from app.schemas.staging_readiness import (
     CheckResult,
     CheckStatus,
     DockerReadinessEvidence,
+    GatePolicyResult,
     GHCRAccessEvidence,
     GitHubAccessEvidence,
     GPUCapabilityEvidence,
@@ -17,6 +18,7 @@ from app.schemas.staging_readiness import (
     ReleaseManifestEvidence,
     RollbackReadinessEvidence,
     SmokeCredentialEvidence,
+    StagingGateEvaluationReport,
     StagingPreflightReport,
 )
 
@@ -30,10 +32,12 @@ __all__ = [
     "GHCRAccessEvidence",
     "GitHubAccessEvidence",
     "GPUCapabilityEvidence",
+    "GatePolicyResult",
     "InfrastructureEvidenceReport",
     "ReadinessEvidence",
     "ReleaseManifestEvidence",
     "RollbackReadinessEvidence",
     "SmokeCredentialEvidence",
+    "StagingGateEvaluationReport",
     "StagingPreflightReport",
 ]

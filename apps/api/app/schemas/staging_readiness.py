@@ -218,3 +218,48 @@ class InfrastructureEvidenceReport(BaseModel):
     def to_json(self, indent: int = 2) -> str:
         """Render report as formatted JSON string."""
         return self.model_dump_json(indent=indent)
+
+
+class GatePolicyResult(BaseModel):
+    """Result of an individual readiness gate policy evaluation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: str
+    policy_name: str
+    status: CheckStatus
+    mandatory: bool = True
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    remediation: str | None = None
+
+
+class StagingGateEvaluationReport(BaseModel):
+    """Auditable, machine-readable report summarizing unified staging gate evaluations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "1.0.0"
+    environment: str = "staging"
+    repository: str
+    commit_sha: str
+    evaluated_at: str
+    overall_status: CheckStatus
+    is_ready: bool = False
+    strict_mode: bool = False
+    live_qualification_authorized: bool = False
+    production_deployment_authorized: bool = False
+    preflight_evaluated: bool = False
+    evidence_evaluated: bool = False
+    evidence_freshness_seconds: float | None = None
+    evidence_is_fresh: bool = False
+    gate_policies: list[GatePolicyResult] = Field(default_factory=list)
+    failed_policies: list[str] = Field(default_factory=list)
+    blocked_policies: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    remediations: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def to_json(self, indent: int = 2) -> str:
+        """Render report as formatted JSON string."""
+        return self.model_dump_json(indent=indent)
