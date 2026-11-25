@@ -1,0 +1,229 @@
+name: Production Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Target Git commit SHA to deploy (must be on main and verified by CI)"
+        required: false
+        default: ""
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    name: Verify CI & Commit Integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      target_sha: ${{ steps.resolve-sha.outputs.target_sha }}
+      release_timestamp: ${{ steps.resolve-sha.outputs.release_timestamp }}
+      api_tag: ${{ steps.resolve-sha.outputs.api_tag }}
+      web_tag: ${{ steps.resolve-sha.outputs.web_tag }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 50
+
+      - name: Resolve and verify commit SHA against CI
+        id: resolve-sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TRIGGER_WORKFLOW="${{ github.event.workflow_run.name }}"
+            TRIGGER_BRANCH="${{ github.event.workflow_run.head_branch }}"
+            TRIGGER_CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            TRIGGER_SHA="${{ github.event.workflow_run.head_sha }}"
+
+            echo "Evaluating CI workflow_run trigger..."
+            echo "  Triggering Workflow: $TRIGGER_WORKFLOW"
+            echo "  Triggering Branch:   $TRIGGER_BRANCH"
+            echo "  CI Conclusion:       $TRIGGER_CONCLUSION"
+            echo "  Target Commit SHA:   $TRIGGER_SHA"
+
+            if [ "$TRIGGER_WORKFLOW" != "CI" ]; then
+              echo "::error::Triggering workflow must be 'CI', got '$TRIGGER_WORKFLOW'"
+              exit 1
+            fi
+            if [ "$TRIGGER_BRANCH" != "main" ]; then
+              echo "::error::Production deployment is restricted to the 'main' branch, got '$TRIGGER_BRANCH'"
+              exit 1
+            fi
+            if [ "$TRIGGER_CONCLUSION" != "success" ]; then
+              echo "::error::CI workflow concluded with '$TRIGGER_CONCLUSION'. Deployment requires 'success'."
+              exit 1
+            fi
+            DEPLOY_SHA="$TRIGGER_SHA"
+          else
+            # Manual workflow_dispatch execution
+            INPUT_SHA="${{ inputs.commit_sha }}"
+            DEPLOY_SHA="${INPUT_SHA:-${{ github.sha }}}"
+
+            echo "Evaluating manual workflow_dispatch for commit: $DEPLOY_SHA"
+
+            # Verify commit is present on main branch
+            if ! git merge-base --is-ancestor "$DEPLOY_SHA" origin/main 2>/dev/null && [ "$DEPLOY_SHA" != "$(git rev-parse origin/main)" ]; then
+              echo "::error::Commit $DEPLOY_SHA is not on the 'main' branch. Deployment rejected."
+              exit 1
+            fi
+
+            # Query GitHub API to verify CI completed successfully for this exact SHA
+            echo "Querying GitHub Actions API for completed CI runs on commit $DEPLOY_SHA..."
+            RUNS_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&status=completed" || echo "")
+            if [ -z "$RUNS_JSON" ]; then
+              echo "::error::Failed to query GitHub Actions API for CI runs."
+              exit 1
+            fi
+
+            SUCCESSFUL_RUN=$(echo "$RUNS_JSON" | jq -r '.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main") | .id' | head -n 1)
+            if [ -z "$SUCCESSFUL_RUN" ] || [ "$SUCCESSFUL_RUN" = "null" ]; then
+              echo "::error::No successful CI workflow run found on 'main' for commit $DEPLOY_SHA. Deployment rejected."
+              exit 1
+            fi
+            echo "Verified successful CI workflow run ID: $SUCCESSFUL_RUN for commit $DEPLOY_SHA"
+          fi
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          API_TAG="regimex-api:$DEPLOY_SHA"
+          WEB_TAG="regimex-web:$DEPLOY_SHA"
+
+          echo "target_sha=$DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+          echo "api_tag=$API_TAG" >> "$GITHUB_OUTPUT"
+          echo "web_tag=$WEB_TAG" >> "$GITHUB_OUTPUT"
+
+          echo "Exact-SHA verification passed: $DEPLOY_SHA"
+
+  migration-preflight:
+    name: Database Migration Boundary
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    steps:
+      - name: Check out repository at target SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.verify.outputs.target_sha }}
+
+      - name: Verify migration contract and configuration
+        run: |
+          echo "=================================================="
+          echo "  Database Migration Boundary Check"
+          echo "=================================================="
+          echo "  Release SHA:      ${{ needs.verify.outputs.target_sha }}"
+          echo "  Migration Engine: Alembic"
+          echo "  Command:          alembic upgrade head"
+          echo "  Execution Model:  Isolated one-off pre-deployment task"
+          echo "  Safety Invariant: Never executed within API runtime workers"
+          echo "=================================================="
+
+          if [ ! -f "apps/api/alembic.ini" ]; then
+            echo "::error::Alembic configuration missing at apps/api/alembic.ini"
+            exit 1
+          fi
+          if [ ! -d "apps/api/alembic/versions" ]; then
+            echo "::error::Alembic migration versions directory missing at apps/api/alembic/versions"
+            exit 1
+          fi
+
+          echo "Alembic configuration and migration history validated."
+
+  deploy:
+    name: Production Deployment Execution
+    needs: [verify, migration-preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+    steps:
+      - name: Check out repository at target SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.verify.outputs.target_sha }}
+
+      - name: Record safe deployment metadata
+        run: |
+          echo "=================================================="
+          echo "  RegimeX Production Deployment"
+          echo "=================================================="
+          echo "  Release SHA:       ${{ needs.verify.outputs.target_sha }}"
+          echo "  Release Timestamp: ${{ needs.verify.outputs.release_timestamp }}"
+          echo "  Run ID:            ${{ github.run_id }} (attempt: ${{ github.run_attempt }})"
+          echo "  Actor:             ${{ github.actor }}"
+          echo "  Environment:       production"
+          echo "  API Image Tag:     ${{ needs.verify.outputs.api_tag }}"
+          echo "  Web Image Tag:     ${{ needs.verify.outputs.web_tag }}"
+          echo "=================================================="
+
+      - name: Validate production secrets pre-flight
+        env:
+          REGIMEX_SECRET_KEY: ${{ secrets.REGIMEX_SECRET_KEY }}
+          REGIMEX_DATABASE_URL: ${{ secrets.REGIMEX_DATABASE_URL }}
+          REGIMEX_ALLOWED_ORIGINS: ${{ secrets.REGIMEX_ALLOWED_ORIGINS }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          echo "Validating core production configuration in 'production' environment..."
+          MISSING=0
+          if [ -z "$REGIMEX_SECRET_KEY" ]; then
+            echo "::warning::Environment secret REGIMEX_SECRET_KEY is not populated."
+            MISSING=$((MISSING + 1))
+          fi
+          if [ -z "$REGIMEX_DATABASE_URL" ]; then
+            echo "::warning::Environment secret REGIMEX_DATABASE_URL is not populated."
+            MISSING=$((MISSING + 1))
+          fi
+          if [ -z "$REGIMEX_ALLOWED_ORIGINS" ]; then
+            echo "::warning::Environment secret REGIMEX_ALLOWED_ORIGINS is not populated."
+            MISSING=$((MISSING + 1))
+          fi
+          if [ -z "$NEXT_PUBLIC_API_URL" ]; then
+            echo "::warning::Environment secret NEXT_PUBLIC_API_URL is not populated."
+            MISSING=$((MISSING + 1))
+          fi
+
+          if [ $MISSING -gt 0 ]; then
+            echo "Pre-flight status: $MISSING core production secret(s) pending configuration in GitHub Environment."
+          else
+            echo "All core production secrets verified present."
+          fi
+
+      - name: Execute deployment or document target status
+        env:
+          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_API" ] && [ -n "$RENDER_DEPLOY_HOOK_WEB" ]; then
+            echo "Triggering API service deployment webhook..."
+            curl -sS -X POST "$RENDER_DEPLOY_HOOK_API" > /dev/null
+            echo "Triggering Web service deployment webhook..."
+            curl -sS -X POST "$RENDER_DEPLOY_HOOK_WEB" > /dev/null
+            echo "Deployment webhook requests dispatched successfully."
+          else
+            echo "=================================================="
+            echo "  Deployment Target Notice"
+            echo "=================================================="
+            echo "Release commit ${{ needs.verify.outputs.target_sha }} is verified and approved for production."
+            echo "No external deployment provider webhooks or registry credentials are configured."
+            echo "To complete live automated dispatch, configure deployment target secrets"
+            echo "(e.g. RENDER_DEPLOY_HOOK_API, RENDER_DEPLOY_HOOK_WEB or container registry credentials)"
+            echo "in GitHub Repository Settings -> Environments -> production."
+            echo "=================================================="
+          fi

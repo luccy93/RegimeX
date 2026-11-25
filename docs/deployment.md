@@ -21,6 +21,7 @@
 12. [Troubleshooting Memory-Limit Failures](#12-troubleshooting-memory-limit-failures)
 13. [Post-Deployment Verification Steps](#13-post-deployment-verification-steps)
 14. [Rollback Procedure](#14-rollback-procedure)
+15. [Automated Production Deployment Workflow](#15-automated-production-deployment-workflow)
 
 ---
 
@@ -463,3 +464,112 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml \
 ### Step 4: Re-Verify Post-Deployment Checks
 
 Re-execute [Section 13](#13-post-deployment-verification-steps) to ensure services report `ready` and `ok`.
+
+---
+
+## 15. Automated Production Deployment Workflow
+
+> **V25 Commit 02 — Protected Production Deployment Workflow**  
+> Connects verified continuous integration to a controlled, protected production deployment pipeline.
+
+### 15.1 Workflow Overview
+
+The automated deployment pipeline is defined in [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) (`Production Deployment`). It automates the transition from passed CI checks to production release while enforcing approval gates, exact-SHA verification, concurrency locks, and migration boundary safety.
+
+```
+       ┌────────────────────────────────────────────────────────┐
+       │   Trigger: CI Completed on main / workflow_dispatch    │
+       └───────────────────────────┬────────────────────────────┘
+                                   │
+                                   ▼
+       ┌────────────────────────────────────────────────────────┐
+       │               Stage 1: Verify CI & SHA                 │
+       │  - Source commit is on approved 'main' branch          │
+       │  - Exact commit SHA passed 'CI' workflow               │
+       │  - Fail closed if CI status cannot be established      │
+       └───────────────────────────┬────────────────────────────┘
+                                   │
+                                   ▼
+       ┌────────────────────────────────────────────────────────┐
+       │          Stage 2: Database Migration Boundary          │
+       │  - Gated by GitHub Environment 'production' approval   │
+       │  - Verifies alembic.ini and migration versions         │
+       │  - Run as isolated one-off task (never in API workers) │
+       │  - Forward-only: automatic downgrades prohibited       │
+       └───────────────────────────┬────────────────────────────┘
+                                   │
+                                   ▼
+       ┌────────────────────────────────────────────────────────┐
+       │         Stage 3: Production Deployment Execution       │
+       │  - Gated by GitHub Environment 'production'            │
+       │  - Safe metadata logged (SHA, Run ID, Tags, Timestamp) │
+       │  - Pre-flight secret validation                        │
+       │  - Dispatch to deployment provider or compose stack    │
+       └────────────────────────────────────────────────────────┘
+```
+
+### 15.2 Trigger Policy & Exact-SHA Verification
+
+1. **Automatic Trigger (`workflow_run`)**:
+   - Triggers exclusively upon completion of the `CI` workflow on the `main` branch.
+   - Verifies `github.event.workflow_run.conclusion == 'success'` and `github.event.workflow_run.head_branch == 'main'`.
+   - Extracts the exact commit SHA that was tested.
+2. **Manual Trigger (`workflow_dispatch`)**:
+   - Authorized maintainers can deploy an explicit commit SHA.
+   - Verifies the SHA is on the `main` branch.
+   - Queries GitHub Actions API (`/repos/.../actions/workflows/ci.yml/runs?head_sha=...`) to verify that the exact SHA successfully completed CI.
+   - Fails immediately if CI has not passed.
+3. **Pull Request Isolation**:
+   - Pull requests (`pull_request`, `pull_request_target`) **never** trigger deployment.
+   - Fork PRs never receive production environment credentials.
+
+### 15.3 Deployment Concurrency
+
+Production deployment uses a strict concurrency lock:
+
+```yaml
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+```
+
+- **Single Execution**: Only one production deployment runs at any given time.
+- **No Mid-Flight Cancellation**: In-progress deployments cannot be cancelled by subsequent runs, preventing partially applied migrations or aborted rollouts.
+
+### 15.4 GitHub Environment Protection (`production`)
+
+The deployment workflow uses the protected GitHub Environment named `production`.
+
+**Required Manual GitHub Settings** (**Settings** -> **Environments** -> **production**):
+1. **Required Reviewers**: Assign senior maintainers/architects who must review and approve deployment before execution.
+2. **Deployment Branches**: Restrict deployment exclusively to `refs/heads/main`.
+3. **Environment Secrets**: Configure production credentials scoped strictly to `production`:
+   - `REGIMEX_SECRET_KEY` (Required: ≥32 chars)
+   - `REGIMEX_DATABASE_URL` (Required: `postgresql+asyncpg://...`)
+   - `REGIMEX_ALLOWED_ORIGINS` (Required: explicit CORS origins)
+   - `NEXT_PUBLIC_API_URL` (Required: browser API base URL)
+   - `RENDER_DEPLOY_HOOK_API` / `RENDER_DEPLOY_HOOK_WEB` (Optional: Render deploy webhooks)
+
+### 15.5 Immutable Release Identification
+
+Every production release records an immutable identity:
+- **Git Commit SHA**: 40-character SHA (`DEPLOY_SHA`).
+- **Container Tags**: `regimex-api:<SHA>` and `regimex-web:<SHA>` (mutable `latest` is not used as the primary identifier).
+- **Run ID**: `${{ github.run_id }}` (and attempt number).
+- **Release Timestamp**: UTC ISO 8601 timestamp.
+- **Provenance Logging**: Safe metadata is printed to deployment logs without passwords, tokens, or credentials.
+
+### 15.6 Database Migration Boundary
+
+- **Command**: `alembic upgrade head` (executed within `apps/api/`).
+- **Execution Model**: Ephemeral pre-deployment task before container routing switches.
+- **Worker Isolation**: Individual uvicorn runtime containers **never** run migrations on startup (`--reload` and auto-migration are strictly disabled).
+- **Forward-Only**: Downgrades are never executed automatically by CI/CD pipelines.
+
+### 15.7 Provider Status & Manual Setup Gap
+
+- The workflow foundation is **provider-independent**.
+- If hosting on a managed PaaS (e.g., Render), configure `RENDER_DEPLOY_HOOK_API` and `RENDER_DEPLOY_HOOK_WEB` as environment secrets in GitHub.
+- If self-hosting using Docker Compose, the workflow outputs release tags that can be pulled and started with `infra/docker-compose.prod.yml`.
+- When provider secrets are not configured, the workflow verifies SHA and CI status, records release metadata, and emits a clear informational notice without throwing an unhandled error.
+

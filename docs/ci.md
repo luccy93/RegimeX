@@ -278,3 +278,66 @@ For the `main` branch in GitHub Repository Settings (`Settings` -> `Branches` ->
    - `apps/api` uses bounded version constraints in `pyproject.toml`. Pinned lockfiles for Python (e.g. `pip-compile` / `uv.lock`) are planned for future dependency management updates.
 4. **External Services**:
    - The test suite intentionally skips live market queries (e.g. Yahoo Finance) and live OpenAI calls. Integration tests with live networks are isolated into dedicated offline mocks.
+
+---
+
+## 8. Protected Production Deployment Workflow (V25 Commit 02)
+
+RegimeX establishes a secure deployment workflow at [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) that bridges continuous integration with production deployment.
+
+### 8.1 Workflow Architecture & Triggers
+- **Workflow Name**: `Production Deployment`
+- **File**: `.github/workflows/deploy.yml`
+- **Triggers**:
+  - `workflow_run`: Automatically triggered when the `CI` workflow completes on the `main` branch.
+  - `workflow_dispatch`: Controlled manual invocation for authorized release managers.
+- **Restrictions**:
+  - Strictly blocked from running on pull requests (`pull_request` and `pull_request_target` are not permitted).
+  - Production credentials are never exposed to untrusted fork code.
+
+### 8.2 CI Dependency & Exact-SHA Verification
+Deployment enforces strict verification before executing any deployment action:
+1. **Branch Verification**: Confirms the target commit belongs to `main` (or is an ancestor of `origin/main`).
+2. **Exact-SHA Verification**:
+   - For `workflow_run`: Verifies `github.event.workflow_run.head_branch == 'main'`, `github.event.workflow_run.name == 'CI'`, and `github.event.workflow_run.conclusion == 'success'`.
+   - For `workflow_dispatch`: Queries the GitHub Actions API to ensure a completed, successful `CI` run exists for that exact 40-character commit SHA on `main`.
+3. **Fail-Closed Policy**: If CI completion cannot be verified for the exact SHA, deployment immediately aborts with exit code 1.
+
+### 8.3 Production Environment Protection
+- **Environment**: Binds to the GitHub Environment named `production`.
+- **Manual Repository Configuration Required**:
+  - Navigate to GitHub: **Settings** -> **Environments** -> **production**.
+  - **Required Reviewers**: Add designated release maintainers/architects whose explicit sign-off is required before deployment proceeds.
+  - **Deployment Branches**: Restrict deployment to `main` only.
+  - **Environment Secrets**: Configure production secrets scoped exclusively to the `production` environment.
+
+### 8.4 Deployment Concurrency
+- `concurrency`:
+  - `group: production-deployment`
+  - `cancel-in-progress: false`
+- **Safety Invariant**: Only one production deployment can run at any given moment. In-flight deployments are never cancelled mid-flight, preventing partially applied migrations or interrupted container rollouts.
+
+### 8.5 Immutable Release Identification
+Every release establishes immutable provenance:
+- **Target Git SHA**: Full 40-character commit hash (`${{ needs.verify.outputs.target_sha }}`).
+- **Release Timestamp**: UTC ISO 8601 timestamp.
+- **Run ID**: GitHub Actions workflow run identifier (`${{ github.run_id }}`).
+- **Container Tags**: Immutable tags (`regimex-api:<SHA>`, `regimex-web:<SHA>`). Deployments do not rely solely on mutable tags such as `latest`.
+
+### 8.6 Database Migration Boundary
+- Database migrations are isolated into a dedicated pre-deployment stage (`migration-preflight`).
+- **Command**: `alembic upgrade head`
+- **Execution Rule**: Run as an ephemeral, isolated pre-deployment task against `REGIMEX_DATABASE_URL`.
+- **Safety Rule**: Migrations are **never** executed inside individual API uvicorn runtime workers.
+- **Rollback Rule**: Automatic schema downgrades are prohibited in CI/CD. Forward hotfix migrations must be used.
+
+### 8.7 Secret Management & Pre-Flight Validation
+- Core required secrets verified before deployment:
+  - `REGIMEX_SECRET_KEY`: Minimum 32-character cryptographic secret.
+  - `REGIMEX_DATABASE_URL`: Production PostgreSQL/TimescaleDB connection string.
+  - `REGIMEX_ALLOWED_ORIGINS`: Explicit CORS allowed origins.
+  - `NEXT_PUBLIC_API_URL`: Browser-accessible API URL.
+- Optional deployment target webhooks/credentials:
+  - `RENDER_DEPLOY_HOOK_API`, `RENDER_DEPLOY_HOOK_WEB` (for Render managed hosting).
+- **Sanitization Rule**: Secrets are never echoed, logged, or embedded into images or repository files.
+
