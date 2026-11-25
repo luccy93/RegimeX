@@ -22,6 +22,7 @@
 13. [Post-Deployment Verification Steps](#13-post-deployment-verification-steps)
 14. [Rollback Procedure](#14-rollback-procedure)
 15. [Automated Production Deployment Workflow](#15-automated-production-deployment-workflow)
+16. [Staging Infrastructure Readiness & Qualification Guide](staging.md)
 
 ---
 
