@@ -116,3 +116,75 @@ python scripts/staging_preflight.py --format json --output staging-readiness-pre
 1. **Zero Credential Exposure**: `redact_secrets()` sanitizes all connection strings, tokens, and authorization headers before logging or serializing to JSON.
 2. **Non-Root Containers**: Both `api.Dockerfile` and `web.Dockerfile` enforce dedicated non-root users (`regimex` and `nextjs`).
 3. **No World-Writable Configurations**: Sensitive files and `.env` credentials are restricted and untracked from version control.
+
+---
+
+## 8. Infrastructure Readiness Evidence Collection
+
+`scripts/staging_evidence.py` collects concrete, auditable infrastructure readiness evidence from the staging execution host:
+
+```
+┌────────────────────────────────────────────────────────┐
+│              scripts/staging_evidence.py               │
+│               (Evidence CLI Collector)                 │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│         app.core.staging_evidence.Collector            │
+│     - collect_docker_evidence()                        │
+│     - collect_github_evidence()                        │
+│     - collect_ghcr_evidence()                          │
+│     - validate_release_manifest()                      │
+│     - validate_smoke_credentials()                     │
+│     - assess_rollback_and_backup()                     │
+│     - detect_gpu_capability()                          │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│     app.schemas.staging_readiness.EvidenceReport       │
+│  - Fail-closed evaluation                              │
+│  - live_qualification_authorized: false (strictly)    │
+│  - production_deployment_authorized: false (strictly) │
+│  - Immutable digest pins (@sha256:...) enforcement     │
+│  - Staging smoke-test vs prod secret isolation         │
+│  - Honest optional GPU detection (CPU fallback)        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Component Evidence Gates
+
+| Component | Target Check | Strict Invariant | Failure Status |
+|---|---|---|---|
+| **Docker Staging Host** | Engine 24+, Compose v2, storage $\ge 1$ GB, ports (8000, 3000, 5432, 6379) | Daemon socket must respond; non-root execution | `BLOCKED` / `FAIL` |
+| **GitHub Access** | `gh` CLI or `GITHUB_TOKEN` | Read access to `luccy93/RegimeX`; zero token logging | `NOT_CONFIGURED` / `FAIL` |
+| **GHCR Registry** | `ghcr.io` pull authorization | Verified via token or docker config | `NOT_CONFIGURED` / `FAIL` |
+| **Release Manifest** | `release-manifest.json` | Exact 40-char SHA match; immutable `@sha256:` digest pins; `:latest` rejected | `FAIL` |
+| **Smoke Credentials** | `STAGING_SMOKE_USER`, `STAGING_SMOKE_PASSWORD` | Strictly isolated; fails if matching production secrets | `FAIL` / `NOT_CONFIGURED` |
+| **Rollback & Backup** | Backup dir, `docs/deployment.md`, `docs/staging.md` | Forward-only DB lifecycle; no automated downgrades | `FAIL` / `WARNING` |
+| **GPU Compute** | NVIDIA GPU & container toolkit | Non-mandatory (`mandatory=False`); CPU fallback supported | `WARNING` (Advisory) |
+
+### CLI Usage: `scripts/staging_evidence.py`
+
+```bash
+# Output evidence summary in JSON format
+python scripts/staging_evidence.py --format json
+
+# Write JSON evidence report to disk
+python scripts/staging_evidence.py --format json --output staging-infrastructure-evidence.json
+
+# Human-readable formatted text breakdown
+python scripts/staging_evidence.py --format text --verbose
+
+# Strict evaluation gate (treats warnings as failures)
+python scripts/staging_evidence.py --strict
+```
+
+### Authorization Boundaries
+
+In accordance with Volume V26 governance:
+- `live_qualification_authorized` is **always `false`**.
+- `production_deployment_authorized` is **always `false`**.
+- V26 prepares readiness evidence; live qualification and production rollouts remain strictly gated.
+
