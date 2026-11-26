@@ -267,4 +267,113 @@ python scripts/evaluate_staging_readiness.py --format json --output staging-gate
 - `2`: Gate Blocked (`BLOCKED`). Critical prerequisite unavailable (e.g. Docker daemon down, evidence stale).
 - `3`: Gate Unconfigured (`NOT_CONFIGURED`). Required environment configuration or secrets missing.
 
+---
+
+## 10. Controlled Staging Qualification Orchestration (V27)
+
+Volume V27 introduces controlled, auditable staging qualification orchestration built directly on top of V26 preflight, infrastructure evidence, and readiness gates.
+
+### 10.1 Qualification Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│           scripts/staging_qualification.py             │
+│                 (Qualification CLI)                    │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│  app.core.staging_qualification.Orchestrator           │
+│   1. Validate environment ('staging' only)             │
+│   2. Validate repository ('luccy93/RegimeX')           │
+│   3. Validate 40-char commit SHA                       │
+│   4. Load V26 StagingPreflightReport                   │
+│   5. Load V26 InfrastructureEvidenceReport             │
+│   6. Evaluate V26 StagingReadinessGateEvaluator        │
+│      └─> Halt immediately if gate is not ready         │
+│   7. Validate staging target URLs & secret isolation   │
+│   8. Validate immutable release identity               │
+│   9. Validate qualification policy & stage registry    │
+│  10. Execute approved stages (bounded timeouts)        │
+│  11. Collect qualification evidence                    │
+│  12. Evaluate qualification results fail-closed        │
+│  13. Emit StagingQualificationReport                   │
+└────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Approved Stage Registry
+
+`QualificationStageRegistry` restricts execution to explicitly registered, approved stages (`approved=True`). Each stage declares:
+- Unique `stage_id` matching `[a-z0-9_.-]+`
+- Prerequisite stage IDs (`prerequisites`)
+- Whether live staging infrastructure is required (`requires_live_staging`)
+- Bounded execution timeout (`timeout_seconds`, strictly within `(0, 300]`)
+
+Arbitrary user-supplied or report-supplied commands are never executed.
+
+### 10.3 Environment Isolation & Secret Redaction
+
+- **Explicit Staging Only**: Only `--environment staging` is accepted. Production names (`production`, `prod`, `live`) and non-staging names (`development`, `qa`) are rejected.
+- **No Silent Fallback**: Missing `STAGING_API_URL` or `STAGING_WEB_URL` results in `NOT_CONFIGURED`; the orchestrator never falls back to production URLs.
+- **Production URL & Credential Rejection**: URLs pointing to production hosts or colliding with `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL`, and credentials matching `PRODUCTION_SECRET_KEY` / `PROD_DATABASE_URL`, are rejected with `FAIL`.
+- **Secret Redaction**: `sanitize_text()` and `sanitize_mapping()` scrub bearer/basic tokens, passwords, connection DSNs, API keys, and sensitive environment variable values from all logs, error messages, and JSON reports.
+
+### 10.4 CLI Usage: `scripts/staging_qualification.py`
+
+```bash
+# Dry-run orchestration validation (zero network calls)
+python scripts/staging_qualification.py \
+  --environment staging \
+  --commit-sha <40-char-sha> \
+  --preflight-report staging-readiness-preflight.json \
+  --evidence-report staging-infrastructure-evidence.json \
+  --staging-api-url https://api.staging.regimex.example.com \
+  --staging-web-url https://staging.regimex.example.com \
+  --dry-run \
+  --format text
+
+# Machine-readable JSON report output
+python scripts/staging_qualification.py \
+  --environment staging \
+  --commit-sha <40-char-sha> \
+  --preflight-report staging-readiness-preflight.json \
+  --evidence-report staging-infrastructure-evidence.json \
+  --format json \
+  --output staging-qualification-report.json \
+  --strict
+```
+
+### 10.5 Report Format & Lifecycle Semantics
+
+`StagingQualificationReport` distinguishes every phase of a run via `run_id`, `run_metadata`, and explicit lifecycle flags:
+- `qualification_requested`
+- `qualification_started`
+- `qualification_completed`
+- `qualification_passed`
+- `qualification_blocked`
+- `qualification_failed`
+
+Governance invariants remain strictly `false`:
+- `live_qualification_authorized: false`
+- `production_deployment_authorized: false`
+- `production_deployment_performed: false`
+- `container_images_published: false`
+
+### 10.6 Status Semantics & Exit Codes
+
+| Status | Meaning | CLI Exit Code |
+|---|---|---|
+| `PASS` | All approved stages and prerequisites passed | `0` |
+| `WARNING` | Passed with non-mandatory advisories (fails in `--strict`) | `0` (`1` in `--strict`) |
+| `FAIL` | Qualification check, isolation, or policy failed | `1` (or `4` for invalid args before start) |
+| `BLOCKED` | V26 gates blocked, evidence stale, or prerequisite unmet | `2` |
+| `NOT_CONFIGURED` | Missing `STAGING_API_URL`, `STAGING_WEB_URL`, or V26 config | `3` |
+| `NOT_RUN` | Stage skipped (e.g., live staging stage in `--dry-run`) | `0` in `--dry-run`, else `2` |
+
+### 10.7 Dry-Run Behavior & Failure Handling
+
+- **`--dry-run`**: Validates environment, repository, commit SHA, V26 preflight/evidence/gates, staging URLs, and policy without making any HTTP requests or mutating infrastructure. Stages with `requires_live_staging=True` are marked `NOT_RUN` and `qualification_passed` remains `false` when live stages are skipped.
+- **Failure Handling**: Failures in V26 readiness gates halt execution before any qualification stage runs. Stage exceptions and timeouts are caught per stage, redacted, and surfaced in `failed_checks` and `remediations`.
+
+
 

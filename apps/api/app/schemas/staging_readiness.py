@@ -263,3 +263,180 @@ class StagingGateEvaluationReport(BaseModel):
     def to_json(self, indent: int = 2) -> str:
         """Render report as formatted JSON string."""
         return self.model_dump_json(indent=indent)
+
+
+# =============================================================================
+# Volume V27 — Staging Qualification Domain Models
+# =============================================================================
+
+
+class QualificationStatus(StrEnum):
+    """Explicit evaluation status for staging qualification checks and runs."""
+
+    PASS = "PASS"  # noqa: S105
+    FAIL = "FAIL"
+    BLOCKED = "BLOCKED"
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    NOT_RUN = "NOT_RUN"
+    WARNING = "WARNING"
+
+
+class QualificationEnvironment(BaseModel):
+    """Validated staging target environment configuration (isolated from production)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = "staging"
+    api_url: str | None = None
+    web_url: str | None = None
+    database_configured: bool = False
+    redis_configured: bool = False
+    smoke_credentials_configured: bool = False
+    isolated_from_production: bool = True
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class QualificationRunMetadata(BaseModel):
+    """Immutable run identity and lifecycle timestamps for a qualification execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    repository: str
+    commit_sha: str
+    release_tag: str
+    environment: str = "staging"
+    dry_run: bool = False
+    strict_mode: bool = False
+    requested_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
+class QualificationCheck(BaseModel):
+    """Definition of an approved, bounded qualification check."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    check_id: str
+    stage_id: str
+    name: str
+    description: str = ""
+    mandatory: bool = True
+    requires_live_staging: bool = True
+    timeout_seconds: float = 15.0
+
+
+class QualificationCheckResult(BaseModel):
+    """Structured, secret-redacted result of a single qualification check."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    check_id: str
+    stage_id: str
+    name: str
+    status: QualificationStatus
+    mandatory: bool = True
+    message: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_seconds: float = 0.0
+    http_status: int | None = None
+    evidence_ref: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    remediation: str | None = None
+
+
+class QualificationStage(BaseModel):
+    """Definition of an approved qualification stage in the stage registry."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage_id: str
+    name: str
+    description: str = ""
+    prerequisites: list[str] = Field(default_factory=list)
+    requires_live_staging: bool = True
+    timeout_seconds: float = 30.0
+    mandatory: bool = True
+    approved: bool = True
+
+
+class QualificationStageResult(BaseModel):
+    """Structured execution outcome of a single qualification stage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage_id: str
+    name: str
+    status: QualificationStatus
+    mandatory: bool = True
+    requires_live_staging: bool = True
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_seconds: float = 0.0
+    checks: list[QualificationCheckResult] = Field(default_factory=list)
+    message: str = ""
+    error: str | None = None
+
+
+class QualificationEvidence(BaseModel):
+    """Auditable evidence artifact collected during staging qualification."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_id: str
+    source: str
+    timestamp: str
+    commit_sha: str
+    repository: str
+    environment: str
+    status: QualificationStatus
+    is_live: bool = False
+    freshness_seconds: float | None = None
+    is_fresh: bool = False
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class StagingQualificationReport(BaseModel):
+    """Auditable, machine-readable report for controlled staging qualification."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "1.0.0"
+    run_id: str
+    repository: str
+    commit_sha: str
+    release_tag: str
+    environment: QualificationEnvironment
+    run_metadata: QualificationRunMetadata
+    overall_status: QualificationStatus
+    qualification_requested: bool = True
+    qualification_started: bool = False
+    qualification_completed: bool = False
+    qualification_passed: bool = False
+    qualification_blocked: bool = False
+    qualification_failed: bool = False
+    live_qualification_authorized: bool = False
+    production_deployment_authorized: bool = False
+    production_deployment_performed: bool = False
+    container_images_published: bool = False
+    v26_preflight_status: CheckStatus = CheckStatus.NOT_RUN
+    v26_evidence_status: CheckStatus = CheckStatus.NOT_RUN
+    v26_gate_status: CheckStatus = CheckStatus.NOT_RUN
+    v26_gate_passed: bool = False
+    v26_gate_report: StagingGateEvaluationReport | None = None
+    stages: list[QualificationStageResult] = Field(default_factory=list)
+    checks: list[QualificationCheckResult] = Field(default_factory=list)
+    evidence: list[QualificationEvidence] = Field(default_factory=list)
+    failed_checks: list[str] = Field(default_factory=list)
+    blocked_checks: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    remediations: list[str] = Field(default_factory=list)
+    error_message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def to_json(self, indent: int = 2) -> str:
+        """Render report as formatted JSON string."""
+        return self.model_dump_json(indent=indent)
