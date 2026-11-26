@@ -44,8 +44,18 @@ API_DIR = REPO_ROOT / "apps" / "api"
 if str(API_DIR) not in sys.path:
     sys.path.insert(0, str(API_DIR))
 
-from app.core.staging_qualification import StagingQualificationOrchestrator  # noqa: E402
+from app.core.staging_qualification import (  # noqa: E402
+    StagingQualificationOrchestrator,
+    build_default_stage_registry,
+)
+from app.core.staging_qualification_gates import (  # noqa: E402
+    QualificationEvidenceEvaluator,
+    format_text_audit_report,
+)
+from app.core.staging_smoke import build_smoke_stage_registry  # noqa: E402
 from app.schemas.staging_readiness import (  # noqa: E402
+    ExecutionMode,
+    InfrastructureEvidenceReport,
     QualificationStatus,
     StagingQualificationReport,
 )
@@ -111,6 +121,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default="",
         help="Optional file path to write generated qualification report",
+    )
+    parser.add_argument(
+        "--audit-output",
+        default="",
+        help="Optional file path to write final V27 qualification audit report JSON/text",
+    )
+    parser.add_argument(
+        "--include-smoke",
+        action="store_true",
+        help="Include V27 Commit 02 staging service smoke stages in execution",
+    )
+    parser.add_argument(
+        "--execution-mode",
+        choices=["MOCKED", "LOCAL_INTEGRATION", "LIVE_STAGING"],
+        default="MOCKED",
+        help="Explicit execution mode classification for evidence auditing",
     )
     parser.add_argument(
         "--format",
@@ -236,6 +262,10 @@ def main(argv: list[str] | None = None) -> int:
     preflight_path = Path(args.preflight_report) if args.preflight_report else None
     evidence_path = Path(args.evidence_report) if args.evidence_report else None
     commit_sha: str | None = args.commit_sha if args.commit_sha else None
+    exec_mode = ExecutionMode(args.execution_mode)
+    registry = (
+        build_smoke_stage_registry() if args.include_smoke else build_default_stage_registry()
+    )
 
     orchestrator = StagingQualificationOrchestrator(
         repo_root=repo_root,
@@ -248,6 +278,8 @@ def main(argv: list[str] | None = None) -> int:
         max_age_seconds=args.max_age_seconds,
         dry_run=args.dry_run,
         strict=args.strict,
+        stage_registry=registry,
+        execution_mode=exec_mode,
     )
 
     report = orchestrator.run_qualification()
@@ -267,6 +299,33 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         print(f"\n[Qualification Report written to {out_path}]", file=sys.stderr)
+
+    if args.audit_output:
+        infra_ev = (
+            InfrastructureEvidenceReport.model_validate_json(
+                evidence_path.read_text(encoding="utf-8")
+            )
+            if evidence_path is not None and evidence_path.is_file()
+            else None
+        )
+        evaluator = QualificationEvidenceEvaluator(
+            max_age_seconds=args.max_age_seconds,
+            strict=args.strict,
+        )
+        audit = evaluator.evaluate(
+            report=report,
+            execution_mode=exec_mode,
+            infrastructure_evidence=infra_ev,
+        )
+        audit_text = (
+            audit.to_json(indent=2)
+            if args.format == "json" or args.audit_output.endswith(".json")
+            else format_text_audit_report(audit)
+        )
+        audit_path = Path(args.audit_output).resolve()
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        audit_path.write_text(audit_text, encoding="utf-8")
+        print(f"[Audit Report written to {audit_path}]", file=sys.stderr)
 
     return resolve_exit_code(report, strict=args.strict)
 

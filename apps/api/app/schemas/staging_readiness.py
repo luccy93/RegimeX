@@ -281,6 +281,24 @@ class QualificationStatus(StrEnum):
     WARNING = "WARNING"
 
 
+class ExecutionMode(StrEnum):
+    """Execution provenance classifying mocked, local, or live staging runs."""
+
+    MOCKED = "MOCKED"
+    LOCAL_INTEGRATION = "LOCAL_INTEGRATION"
+    LIVE_STAGING = "LIVE_STAGING"
+
+
+class QualificationDecision(StrEnum):
+    """Deterministic final qualification release-evidence outcome."""
+
+    QUALIFIED = "QUALIFIED"
+    NOT_QUALIFIED = "NOT_QUALIFIED"
+    BLOCKED = "BLOCKED"
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    FAILED = "FAILED"
+
+
 class QualificationEnvironment(BaseModel):
     """Validated staging target environment configuration (isolated from production)."""
 
@@ -339,6 +357,7 @@ class QualificationCheckResult(BaseModel):
     mandatory: bool = True
     environment: str = "staging"
     commit_sha: str = ""
+    execution_mode: ExecutionMode = ExecutionMode.MOCKED
     message: str
     started_at: str | None = None
     completed_at: str | None = None
@@ -395,6 +414,7 @@ class QualificationEvidence(BaseModel):
     repository: str
     environment: str
     status: QualificationStatus
+    execution_mode: ExecutionMode = ExecutionMode.MOCKED
     is_live: bool = False
     freshness_seconds: float | None = None
     is_fresh: bool = False
@@ -414,6 +434,7 @@ class StagingQualificationReport(BaseModel):
     environment: QualificationEnvironment
     run_metadata: QualificationRunMetadata
     overall_status: QualificationStatus
+    execution_mode: ExecutionMode = ExecutionMode.MOCKED
     qualification_requested: bool = True
     qualification_started: bool = False
     qualification_completed: bool = False
@@ -441,4 +462,60 @@ class StagingQualificationReport(BaseModel):
 
     def to_json(self, indent: int = 2) -> str:
         """Render report as formatted JSON string."""
+        return self.model_dump_json(indent=indent)
+
+
+class QualificationPolicyResult(BaseModel):
+    """Evaluation result of a mandatory or optional qualification policy rule."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: str
+    policy_name: str
+    mandatory: bool = True
+    status: QualificationStatus
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    remediation: str | None = None
+
+
+class StagingQualificationAuditReport(BaseModel):
+    """Final machine-readable V27 staging qualification audit & release-evidence report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "1.0.0"
+    run_id: str
+    repository: str
+    commit_sha: str
+    release_tag: str
+    environment: str
+    execution_mode: ExecutionMode
+    started_at: str
+    completed_at: str
+    v26_readiness_result: CheckStatus
+    backend_smoke_result: QualificationStatus
+    frontend_smoke_result: QualificationStatus
+    api_contract_result: QualificationStatus
+    database_result: QualificationStatus
+    redis_result: QualificationStatus
+    application_service_results: dict[str, QualificationStatus] = Field(default_factory=dict)
+    evidence_freshness_result: QualificationStatus
+    evidence_integrity_result: QualificationStatus
+    mandatory_checks: list[QualificationPolicyResult] = Field(default_factory=list)
+    optional_checks: list[QualificationPolicyResult] = Field(default_factory=list)
+    failed_checks: list[str] = Field(default_factory=list)
+    blocked_checks: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    decision: QualificationDecision
+    decision_reason: str
+    manual_recovery_recommendations: list[str] = Field(default_factory=list)
+    live_qualification_authorized: bool = False
+    production_deployment_authorized: bool = False
+    production_deployment_performed: bool = False
+    container_images_published: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def to_json(self, indent: int = 2) -> str:
+        """Render audit report as formatted JSON string."""
         return self.model_dump_json(indent=indent)

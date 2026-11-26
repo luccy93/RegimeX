@@ -106,6 +106,26 @@ jobs:
       - name: Run Pytest test suite
         run: python -m pytest tests/ -q --tb=short
 
+      - name: Run V27 staging qualification & policy gate tests (mocked/local only)
+        env:
+          REGIMEX_STAGING_LIVE_TESTS: "0"
+        run: |
+          python -m pytest \
+            tests/unit/test_staging_qualification.py \
+            tests/unit/test_staging_smoke.py \
+            tests/unit/test_staging_qualification_gates.py \
+            tests/integration/test_staging_smoke_local.py \
+            -q --tb=short
+
+      - name: Validate V27 qualification schemas and governance invariants
+        run: |
+          python -c "
+          from app.schemas.staging_readiness import StagingQualificationAuditReport, ExecutionMode, QualificationDecision
+          assert ExecutionMode.MOCKED != ExecutionMode.LIVE_STAGING
+          assert QualificationDecision.QUALIFIED.value == 'QUALIFIED'
+          print('V27 qualification schemas and governance invariants verified.')
+          "
+
   frontend:
     name: Frontend Quality & Tests
     runs-on: ubuntu-latest

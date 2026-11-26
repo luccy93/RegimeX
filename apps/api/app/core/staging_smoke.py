@@ -514,6 +514,7 @@ def _make_check(
         mandatory=mandatory,
         environment=ctx.environment,
         commit_sha=ctx.commit_sha,
+        execution_mode=ctx.execution_mode,
         message=sanitize_text(message, ctx.env),
         started_at=started_at,
         completed_at=datetime.now(UTC).isoformat(),

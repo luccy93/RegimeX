@@ -37,6 +37,7 @@ from app.core.staging_gates import StagingReadinessGateEvaluator
 from app.core.staging_readiness import StagingPreflightInspector
 from app.schemas.staging_readiness import (
     CheckStatus,
+    ExecutionMode,
     InfrastructureEvidenceReport,
     QualificationCheckResult,
     QualificationEnvironment,
@@ -267,6 +268,7 @@ class QualificationContext:
     gate_report: StagingGateEvaluationReport
     staging_api_url: str | None
     staging_web_url: str | None
+    execution_mode: ExecutionMode = ExecutionMode.MOCKED
 
 
 StageHandler = Callable[[QualificationContext], QualificationStageResult]
@@ -356,6 +358,7 @@ def _run_environment_isolation_stage(ctx: QualificationContext) -> Qualification
             name="Staging API URL Isolation",
             status=QualificationStatus.PASS if api_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 f"Staging API target verified: {sanitize_text(ctx.staging_api_url or '', ctx.env)}"
                 if api_ok
@@ -375,6 +378,7 @@ def _run_environment_isolation_stage(ctx: QualificationContext) -> Qualification
             name="Staging Web URL Isolation",
             status=QualificationStatus.PASS if web_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 f"Staging Web target verified: {sanitize_text(ctx.staging_web_url or '', ctx.env)}"
                 if web_ok
@@ -436,6 +440,7 @@ def _run_release_identity_stage(ctx: QualificationContext) -> QualificationStage
             name="Commit SHA Consistency",
             status=QualificationStatus.PASS if sha_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 f"Immutable 40-char commit SHA verified across all reports: {ctx.commit_sha}"
                 if sha_ok
@@ -451,6 +456,7 @@ def _run_release_identity_stage(ctx: QualificationContext) -> QualificationStage
             name="Repository Identity",
             status=QualificationStatus.PASS if repo_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 f"Repository identity verified: {ctx.repository}"
                 if repo_ok
@@ -465,6 +471,7 @@ def _run_release_identity_stage(ctx: QualificationContext) -> QualificationStage
             name="Release Manifest Immutable Digests",
             status=QualificationStatus.PASS if manifest_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 "Release manifest immutable @sha256 digests verified"
                 if manifest_ok
@@ -515,6 +522,7 @@ def _run_qualification_policy_stage(ctx: QualificationContext) -> QualificationS
             name="V26 Unified Readiness Gate",
             status=QualificationStatus.PASS if gate_ok else QualificationStatus.BLOCKED,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 f"V26 readiness gate passed ({ctx.gate_report.overall_status.value})"
                 if gate_ok
@@ -529,6 +537,7 @@ def _run_qualification_policy_stage(ctx: QualificationContext) -> QualificationS
             name="Governance Authorization Boundaries",
             status=QualificationStatus.PASS if gov_ok else QualificationStatus.FAIL,
             mandatory=True,
+            execution_mode=ctx.execution_mode,
             message=(
                 "Governance invariants enforced: production deployment and image push disabled"
                 if gov_ok
@@ -634,6 +643,7 @@ class StagingQualificationOrchestrator:
         strict: bool = False,
         stage_registry: QualificationStageRegistry | None = None,
         approved_stage_ids: Sequence[str] | None = None,
+        execution_mode: ExecutionMode = ExecutionMode.MOCKED,
         env: dict[str, str] | None = None,
     ) -> None:
         self.env = env if env is not None else os.environ.copy()
@@ -654,6 +664,7 @@ class StagingQualificationOrchestrator:
         self.approved_stage_ids = (
             list(approved_stage_ids) if approved_stage_ids is not None else None
         )
+        self.execution_mode = execution_mode
 
     @staticmethod
     def generate_run_id() -> str:
@@ -718,6 +729,7 @@ class StagingQualificationOrchestrator:
                 completed_at=completed_at,
             ),
             overall_status=status,
+            execution_mode=self.execution_mode,
             qualification_requested=True,
             qualification_started=started,
             qualification_completed=True,
@@ -1425,6 +1437,7 @@ class StagingQualificationOrchestrator:
             gate_report=gate_report,
             staging_api_url=api_url.strip(),
             staging_web_url=web_url.strip(),
+            execution_mode=self.execution_mode,
         )
 
         stage_results: list[QualificationStageResult] = []
@@ -1477,9 +1490,11 @@ class StagingQualificationOrchestrator:
                     repository=resolved_repo,
                     environment="staging",
                     status=s_res.status,
+                    execution_mode=(ExecutionMode.MOCKED if self.dry_run else self.execution_mode),
                     is_live=(
                         s_res.requires_live_staging
                         and not self.dry_run
+                        and self.execution_mode == ExecutionMode.LIVE_STAGING
                         and s_res.status != QualificationStatus.NOT_RUN
                     ),
                     is_fresh=True,
@@ -1578,6 +1593,7 @@ class StagingQualificationOrchestrator:
                 completed_at=completed_at,
             ),
             overall_status=overall_status,
+            execution_mode=self.execution_mode,
             qualification_requested=True,
             qualification_started=True,
             qualification_completed=True,

@@ -422,6 +422,87 @@ REGIMEX_STAGING_LIVE_TESTS=1 REGIMEX_STAGING_ENV=staging \
 - **Timeouts & Retries**: Bounded `connect` (5s) and `read` (10s) timeouts, maximum 2 retries on idempotent `GET`/`HEAD`/`OPTIONS` requests only (never on non-idempotent methods), and explicit `X-Request-ID` tracing.
 - **Evidence Fields**: Every `QualificationCheckResult` records `check_id`, `environment`, `commit_sha`, `started_at`, `completed_at`, `status`, `http_status`, `duration_seconds`, `message`, and `evidence_ref` with zero credentials or sensitive response bodies.
 
+---
+
+## 12. Qualification Evidence, Release Gates & Audit Reporting (V27 Commit 03)
+
+> **IMPORTANT**: Staging qualification is **not** production deployment. Passing qualification establishes technical evidence for a human release decision only; it never deploys to production, publishes container images, or modifies production authorization flags.
+
+### 12.1 Execution Modes
+
+Every V27 qualification run and audit report classifies its execution provenance via `ExecutionMode`:
+
+- **`MOCKED`**: Automated unit tests using mock HTTP transports and mocked probes. Proves implementation logic only; **never** establishes live staging readiness.
+- **`LOCAL_INTEGRATION`**: In-process ASGI tests against `create_app()`. Verifies API contracts locally; **never** produces `QUALIFIED`.
+- **`LIVE_STAGING`**: Real read-only smoke execution against an explicitly configured staging deployment with `REGIMEX_STAGING_LIVE_TESTS=1`. Only `LIVE_STAGING` evidence may yield `QUALIFIED`.
+
+### 12.2 Evidence Freshness & Integrity Policy
+
+`QualificationEvidenceEvaluator` (`app.core.staging_qualification_gates`) enforces:
+- **Schema Version**: `1.0.0` strictly required.
+- **Freshness Window**: Evidence age $\le 3600$ seconds (`--max-age-seconds`, default 3600s) across V26 infrastructure evidence, V26 gate evaluation, and V27 qualification timestamps; future clock skew $> 30$s is rejected as `FAIL`.
+- **Identity Binding**: Exact 40-char commit SHA and `luccy93/RegimeX` repository must match across all V26 and V27 reports.
+- **Tamper & Contradiction Detection**: Rejects duplicate `evidence_id` or `check_id` entries, contradictory `PASS` statuses with failed checks, `dry_run=True` presented as `LIVE_STAGING`, mocked sources presented as live, and any governance flag set to `True`.
+
+### 12.3 Mandatory & Optional Policy Rules
+
+| Category | Policy ID | Requirement |
+|---|---|---|
+| Mandatory | `QUAL-POL-V26-GATE` | V26 unified readiness gate must pass |
+| Mandatory | `QUAL-POL-ENV-CONFIG` | Explicit isolated staging URLs (`STAGING_API_URL`, `STAGING_WEB_URL`) |
+| Mandatory | `QUAL-POL-RELEASE-ID` | Valid 40-char SHA, repository, and immutable release tag |
+| Mandatory | `QUAL-POL-BACKEND-LIVE` | `/api/v1/health/live` verified |
+| Mandatory | `QUAL-POL-BACKEND-READY` | `/api/v1/health/ready` and `/ready` dependency checks verified |
+| Mandatory | `QUAL-POL-FRONTEND` | Homepage shell and `NEXT_PUBLIC_API_URL` consistency verified |
+| Mandatory | `QUAL-POL-DEPENDENCIES` | Database readiness (and Redis if configured) verified |
+| Mandatory | `QUAL-POL-SMOKE-COMPLETE` | All 5 smoke stages complete with zero critical failures |
+| Mandatory | `QUAL-POL-EVIDENCE-INTEGRITY` | Freshness and integrity checks pass |
+| Mandatory | `QUAL-POL-LIVE-MODE` | Evidence sourced from `LIVE_STAGING` (not `MOCKED` / `LOCAL_INTEGRATION` / dry-run) |
+| Optional | `QUAL-OPT-GPU` | Optional NVIDIA GPU acceleration (CPU fallback supported) |
+| Optional | `QUAL-OPT-AI` | Optional external AI provider integration |
+| Optional | `QUAL-OPT-RATE-LIMIT` | Optional rate-limit telemetry headers |
+
+Optional advisories or unconfigured optional integrations **never** conceal mandatory failures.
+
+### 12.4 Qualification Decisions (`QualificationDecision`)
+
+- **`QUALIFIED`**: All mandatory checks passed with fresh, verified `LIVE_STAGING` evidence. Ready for **human** release decision.
+- **`NOT_QUALIFIED`**: Qualification executed in `MOCKED`/`LOCAL_INTEGRATION` mode, dry-run mode, or mandatory smoke requirements failed/incomplete.
+- **`BLOCKED`**: Execution could not safely proceed (V26 gate blocked/failed, stale evidence, or unreachable staging target).
+- **`NOT_CONFIGURED`**: Required staging infrastructure or configuration (`STAGING_API_URL`, `STAGING_WEB_URL`, V26 secrets) is absent.
+- **`FAILED`**: Integrity violation, tampered/contradictory evidence, invalid SHA/environment, production URL collision, or governance breach.
+
+### 12.5 Audit Report Generation & Governance Invariants
+
+Generate both the orchestration report and the final release-gate audit report:
+
+```bash
+python scripts/staging_qualification.py \
+  --environment staging \
+  --commit-sha <40-char-sha> \
+  --preflight-report staging-readiness-preflight.json \
+  --evidence-report staging-infrastructure-evidence.json \
+  --include-smoke \
+  --execution-mode LIVE_STAGING \
+  --format json \
+  --output staging-qualification-report.json \
+  --audit-output staging-qualification-audit.json
+```
+
+All generated `StagingQualificationAuditReport` documents strictly enforce:
+- `live_qualification_authorized: false`
+- `production_deployment_authorized: false`
+- `production_deployment_performed: false`
+- `container_images_published: false`
+
+### 12.6 Human Release Approval & Remaining Manual Setup
+
+1. Provision staging infrastructure (Docker/Compose host or managed PaaS) and export isolated staging secrets (`STAGING_API_URL`, `STAGING_WEB_URL`, `STAGING_DATABASE_URL`, `STAGING_SMOKE_USER`, `STAGING_SMOKE_PASSWORD`, `REGIMEX_SECRET_KEY`).
+2. Run V26 preflight (`scripts/staging_preflight.py`), evidence collection (`scripts/staging_evidence.py`), and unified gate check (`scripts/evaluate_staging_readiness.py`).
+3. Run V27 live staging qualification (`REGIMEX_STAGING_LIVE_TESTS=1` and `scripts/staging_qualification.py --include-smoke --execution-mode LIVE_STAGING --audit-output staging-qualification-audit.json`).
+4. Review `StagingQualificationAuditReport`; a human maintainer must explicitly approve any future production rollout via GitHub Environment `production` reviewers.
+
+
 
 
 

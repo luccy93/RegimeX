@@ -21,7 +21,7 @@ from app.core.staging_gates import StagingReadinessGateEvaluator
 from app.core.staging_qualification import StagingQualificationOrchestrator
 from app.core.staging_readiness import StagingPreflightInspector
 from app.core.staging_smoke import StagingLiveTestGuard, build_smoke_stage_registry
-from app.schemas.staging_readiness import QualificationStatus
+from app.schemas.staging_readiness import ExecutionMode, QualificationStatus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 LIVE_TESTS_ENABLED = StagingLiveTestGuard.is_live_opted_in(os.environ)
@@ -58,6 +58,7 @@ def test_live_staging_service_qualification() -> None:
         preflight_report=preflight,
         evidence_report=evidence,
         stage_registry=build_smoke_stage_registry(),
+        execution_mode=ExecutionMode.LIVE_STAGING,
         env=env,
     )
     report = orch.run_qualification()

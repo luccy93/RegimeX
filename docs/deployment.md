@@ -22,7 +22,7 @@
 13. [Post-Deployment Verification Steps](#13-post-deployment-verification-steps)
 14. [Rollback Procedure](#14-rollback-procedure)
 15. [Automated Production Deployment Workflow](#15-automated-production-deployment-workflow)
-16. [Staging Infrastructure Readiness & Qualification Guide](staging.md)
+16. [Staging Infrastructure Readiness & Qualification Guide (V26 & V27)](staging.md)
 
 ---
 
@@ -653,4 +653,15 @@ Every deployment execution generates an auditable JSON report saved to `deployme
   "metadata": {}
 }
 ```
+
+---
+
+## 16. Pre-Release Staging Qualification Gate (V27)
+
+Before approving a release in the protected `production` GitHub Environment, operators should review the Volume V27 `StagingQualificationAuditReport` generated via [`scripts/staging_qualification.py`](../scripts/staging_qualification.py) (see [Staging Qualification Guide](staging.md)).
+
+- **Qualification != Deployment**: Staging qualification executes read-only verification against staging only; it never deploys to production, never publishes container images, and preserves `production_deployment_authorized: false`.
+- **Mocked vs. Live**: Only `QUALIFIED` outcomes backed by `LIVE_STAGING` evidence satisfy live staging release readiness; `MOCKED` and `LOCAL_INTEGRATION` runs always yield `NOT_QUALIFIED` as release evidence.
+- **Human Release Approval**: Final production deployment authorization remains a deliberate human decision in GitHub Environment `production`.
+
 
