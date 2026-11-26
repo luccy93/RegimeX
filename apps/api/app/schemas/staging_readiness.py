@@ -337,6 +337,8 @@ class QualificationCheckResult(BaseModel):
     name: str
     status: QualificationStatus
     mandatory: bool = True
+    environment: str = "staging"
+    commit_sha: str = ""
     message: str
     started_at: str | None = None
     completed_at: str | None = None

@@ -375,5 +375,53 @@ Governance invariants remain strictly `false`:
 - **`--dry-run`**: Validates environment, repository, commit SHA, V26 preflight/evidence/gates, staging URLs, and policy without making any HTTP requests or mutating infrastructure. Stages with `requires_live_staging=True` are marked `NOT_RUN` and `qualification_passed` remains `false` when live stages are skipped.
 - **Failure Handling**: Failures in V26 readiness gates halt execution before any qualification stage runs. Stage exceptions and timeouts are caught per stage, redacted, and surfaced in `failed_checks` and `remediations`.
 
+---
+
+## 11. Staging Service Qualification & Read-Only Smoke Suite (V27 Commit 02)
+
+`app.core.staging_smoke` provides bounded, strictly read-only HTTP probes, dependency checks, and five live smoke stages registered via `build_smoke_stage_registry()`.
+
+### 11.1 Smoke-Test Categories
+
+| Stage ID | Mandatory Checks | Read-Only Guarantees |
+|---|---|---|
+| `backend_health_qualification` | `GET /api/v1/health/live`, `/api/v1/health/ready`, `/ready` | Verifies status, `RegimeX API` identity, and dependency `checks` |
+| `frontend_availability_qualification` | `GET /`, `GET /app/health`, `NEXT_PUBLIC_API_URL` match | Verifies `text/html` shell, safe redirects, zero prod URL leaks |
+| `api_contract_qualification` | `GET /api/v1/auth/me` (401), invalid query (4xx), `GET /api/v1/markets` pagination | Strictly `GET`-only; never creates users, trades, or mutates data |
+| `dependency_readiness_qualification` | `/ready` DB check, optional read-only `SELECT 1` + `alembic_version`, Redis `PING` | Never runs schema downgrades or writes |
+| `service_readiness_qualification` | `/api/v1/health/summary`, `/health/models`, `/health/data`, `/health/pipeline`, optional AI | Optional integrations (`AI`) never mask mandatory failures |
+
+### 11.2 Required Staging Environment Variables
+
+- `REGIMEX_STAGING_ENV=staging`
+- `STAGING_API_URL` (explicit staging backend URL; never production)
+- `STAGING_WEB_URL` (explicit staging frontend URL; never production)
+- `NEXT_PUBLIC_API_URL` (must match `STAGING_API_URL`)
+- `STAGING_SMOKE_USER` and `STAGING_SMOKE_PASSWORD` (isolated from production)
+- `STAGING_DATABASE_URL` (optional direct read-only probe when `REGIMEX_STAGING_DIRECT_DB_PROBE=1`)
+- `STAGING_REDIS_URL` (optional; `PING` check when configured)
+
+### 11.3 Live-Test Opt-In & Execution Modes
+
+Live staging tests in `apps/api/tests/e2e/test_staging_live_smoke.py` are strictly opt-in (`REGIMEX_STAGING_LIVE_TESTS=1`) and are skipped during ordinary unit/CI runs. `StagingLiveTestGuard` refuses execution if the environment is not `staging`, target URLs are missing or target production, required credentials are missing, or V26 readiness gates failed.
+
+```bash
+# 1. Ordinary unit + local ASGI integration tests (no live staging required)
+cd apps/api
+python -m pytest tests/unit/test_staging_smoke.py tests/integration/test_staging_smoke_local.py -q
+
+# 2. Explicit opt-in live staging tests (requires configured staging target + passed V26 gates)
+REGIMEX_STAGING_LIVE_TESTS=1 REGIMEX_STAGING_ENV=staging \
+  STAGING_API_URL=https://api.staging.example.com \
+  STAGING_WEB_URL=https://staging.example.com \
+  python -m pytest tests/e2e/test_staging_live_smoke.py -q
+```
+
+### 11.4 Timeout, Resilience & Report Structure
+
+- **Timeouts & Retries**: Bounded `connect` (5s) and `read` (10s) timeouts, maximum 2 retries on idempotent `GET`/`HEAD`/`OPTIONS` requests only (never on non-idempotent methods), and explicit `X-Request-ID` tracing.
+- **Evidence Fields**: Every `QualificationCheckResult` records `check_id`, `environment`, `commit_sha`, `started_at`, `completed_at`, `status`, `http_status`, `duration_seconds`, `message`, and `evidence_ref` with zero credentials or sensitive response bodies.
+
+
 
 
